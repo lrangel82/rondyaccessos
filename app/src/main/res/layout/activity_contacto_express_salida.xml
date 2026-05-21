@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212"
+    android:padding="16dp">
+
+    <!-- Encabezado de Alerta -->
+    <LinearLayout
+        android:id="@+id/headerAlertaExpress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#2C1A1A"
+        android:padding="12dp"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⚠️ CONTINGENCIA: VEHÍCULO SIN ENTRADA"
+            android:textColor="#FF5252"
+            android:textSize="16sp"
+            android:textStyle="bold"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Se requiere un registro exprés para auditar la procedencia antes de liberar la barrera."
+            android:textColor="#E0E0E0"
+            android:textSize="12sp"
+            android:layout_marginTop="2dp"/>
+    </LinearLayout>
+
+    <!-- Formulario de Captura Rápida -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="16dp"
+        app:layout_constraintTop_toBottomOf="@id/headerAlertaExpress"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <EditText
+                android:id="@+id/txtPlacaExpress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Placa del Vehículo"
+                android:textColorHint="#555555"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:inputType="textCapCharacters"/>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="12dp">
+
+                <EditText
+                    android:id="@+id/txtCalleExpress"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1.2"
+                    android:textColor="#FFFFFF"
+                    android:hint="Calle Visitada"
+                    android:textColorHint="#555555"/>
+
+                <EditText
+                    android:id="@+id/txtNumeroExpress"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="0.8"
+                    android:textColor="#FFFFFF"
+                    android:hint="Núm."
+                    android:textColorHint="#555555"
+                    android:inputType="number"/>
+            </LinearLayout>
+
+            <EditText
+                android:id="@+id/txtConductorExpress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:textColor="#FFFFFF"
+                android:hint="Nombre del Conductor"
+                android:textColorHint="#555555"
+                android:inputType="textCapWords"/>
+
+            <EditText
+                android:id="@+id/txtMotivoExpress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:textColor="#FFFFFF"
+                android:hint="Motivo (ej: Visita rezagada, Salida Express)"
+                android:textColorHint="#555555"/>
+
+            <!-- Botonera de Control de Salida -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="24dp"
+                android:weightSum="2">
+
+                <Button
+                    android:id="@+id/btnCancelarExpress"
+                    android:layout_width="0dp"
+                    android:layout_height="50dp"
+                    android:layout_weight="1"
+                    android:text="Regresar"
+                    android:backgroundTint="#424242"
+                    android:layout_marginEnd="6dp"/>
+
+                <Button
+                    android:id="@+id/btnGuardarExpress"
+                    android:layout_width="0dp"
+                    android:layout_height="50dp"
+                    android:layout_weight="1"
+                    android:text="Regularizar y Salir"
+                    android:backgroundTint="#E64A19"
+                    android:layout_marginStart="6dp"/>
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

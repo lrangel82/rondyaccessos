@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:gravity="center_horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Configuración de Módulo"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:layout_marginTop="16dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Asigne la función de vigilancia para este dispositivo"
+            android:textColor="#888888"
+            android:textSize="13sp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="24dp"/>
+
+        <!-- Botón 1: Módulo Caseta Principal -->
+        <Button
+            android:id="@+id/btnConfigCaseta"
+            android:layout_width="300dp"
+            android:layout_height="55dp"
+            android:text="1) Módulo Caseta (Estación Central)"
+            android:backgroundTint="#6200EE"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- Botón 2: Ingreso Vehicular -->
+        <Button
+            android:id="@+id/btnConfigIngresoVehicular"
+            android:layout_width="300dp"
+            android:layout_height="55dp"
+            android:text="2) Módulo Ingreso Vehicular"
+            android:backgroundTint="#1976D2"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- Botón 3: Ingreso Peatonal -->
+        <Button
+            android:id="@+id/btnConfigIngresoPeatonal"
+            android:layout_width="300dp"
+            android:layout_height="55dp"
+            android:text="3) Módulo Ingreso Peatonal"
+            android:backgroundTint="#0288D1"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- Botón 4: Salida Vehicular -->
+        <Button
+            android:id="@+id/btnConfigSalidaVehicular"
+            android:layout_width="300dp"
+            android:layout_height="55dp"
+            android:text="4) Módulo Salida Vehicular"
+            android:backgroundTint="#388E3C"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- Botón 5: Salida Peatonal -->
+        <Button
+            android:id="@+id/btnConfigSalidaPeatonal"
+            android:layout_width="300dp"
+            android:layout_height="55dp"
+            android:text="5) Módulo Salida Peatonal"
+            android:backgroundTint="#F57C00"/>
+
+    </LinearLayout>
+</ScrollView>

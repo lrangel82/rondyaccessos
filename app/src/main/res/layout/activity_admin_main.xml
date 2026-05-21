@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#282525"
+    android:gravity="center"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/lblAdminTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="PANEL DE ADMINISTRACIÓN CENTRAL"
+        android:textColor="#FFFFFF"
+        android:textSize="22sp"
+        android:textStyle="bold" />
+
+    <Button
+        android:id="@+id/btnGestionMorosos"
+        android:layout_width="280dp"
+        android:layout_height="55dp"
+        android:layout_marginBottom="12dp"
+        android:backgroundTint="#D32F2F"
+        android:text="Domicilios Morosos 📑" />
+
+    <Button
+        android:id="@+id/btnPlacasProhibidas"
+        android:layout_width="280dp"
+        android:layout_height="55dp"
+        android:layout_marginBottom="12dp"
+        android:backgroundTint="#E64A19"
+        android:text="Placas Prohibidas 🚫" />
+
+    <Button
+        android:id="@+id/btnGestionTerraza"
+        android:layout_width="280dp"
+        android:layout_height="55dp"
+        android:layout_marginBottom="12dp"
+        android:backgroundTint="#388E3C"
+        android:text="Apartados Terraza (QR) 🏡" />
+
+    <Button
+        android:id="@+id/btnVerBitacora"
+        android:layout_width="280dp"
+        android:layout_height="55dp"
+        android:backgroundTint="#1976D2"
+        android:text="Bitácora de Accesos 📜" />
+</LinearLayout>

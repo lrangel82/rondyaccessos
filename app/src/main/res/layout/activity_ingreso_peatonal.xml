@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212"
+    android:padding="8dp"
+    tools:context=".peatonal.IngresoPeatonalActivity">
+
+    <!-- Mensaje de Estado Superior -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/lblTopMensajePeatonal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="4dp"
+            android:text="Esperando visitante peatonal..."
+            android:textColor="#00E676"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:id="@+id/columnaCamaraPeatonal"
+            android:layout_width="match_parent"
+            android:layout_height="363dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="8dp"
+            android:orientation="vertical">
+
+            <androidx.camera.view.PreviewView
+                android:id="@+id/previewViewRostro"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1.5"
+                android:background="#000000" />
+
+            <!-- Subtítulos de asistencia por voz de Gemini -->
+            <TextView
+                android:id="@+id/lblSubtitulosPeatonal"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="0.5"
+                android:padding="4dp"
+                android:text=""
+                android:textColor="#FFEB3B"
+                android:textSize="14sp"
+                android:textStyle="italic" />
+
+        </LinearLayout>
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <EditText
+                        android:id="@+id/txtCallePeatonal"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:hint="Calle"
+                        android:textColor="#FFFFFF"
+                        android:textColorHint="#666666" />
+
+                    <EditText
+                        android:id="@+id/txtNumeroPeatonal"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:hint="Número"
+                        android:inputType="number"
+                        android:textColor="#FFFFFF"
+                        android:textColorHint="#666666" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/lblMorosidadPeatonal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text=""
+                    android:textColor="#00E676"
+                    android:textSize="14sp" />
+
+                <EditText
+                    android:id="@+id/txtNombrePeatonal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:hint="Nombre del Visitante"
+                    android:inputType="textCapWords"
+                    android:textColor="#FFFFFF"
+                    android:textColorHint="#666666" />
+
+                <EditText
+                    android:id="@+id/txtMotivoPeatonal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:hint="Razón de la Visita"
+                    android:textColor="#FFFFFF"
+                    android:textColorHint="#666666" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:orientation="horizontal"
+                    android:weightSum="2">
+
+                    <Button
+                        android:id="@+id/btnTomarFoto"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="4dp"
+                        android:layout_weight="1"
+                        android:backgroundTint="#0288D1"
+                        android:text="Capturar Rostro" />
+
+                    <Button
+                        android:id="@+id/btnGuardarPeatonal"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:layout_weight="1"
+                        android:text="Permitir Ingreso" />
+                </LinearLayout>
+            </LinearLayout>
+        </ScrollView>
+
+    </LinearLayout>
+
+    <!-- COLUMNA IZQUIERDA: Cámara Frontal (CameraX Preview) -->
+
+    <!-- COLUMNA DERECHA: Formulario Peatonal -->
+
+</androidx.constraintlayout.widget.ConstraintLayout>

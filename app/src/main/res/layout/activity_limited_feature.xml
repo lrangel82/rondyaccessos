@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212"
+    android:padding="24dp">
+
+    <!-- Card de Advertencia de Licencia -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/cardLicenciaWarning"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardBackgroundColor="#2C1A1A"
+        app:cardCornerRadius="8dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⚠️ MODO INACTIVO / SIN LICENCIA"
+                android:textColor="#FF5252"
+                android:textSize="16sp"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="La funcionalidad de red distribuida, asistente de voz Gemini y alertas de WhatsApp se encuentran deshabilitadas. Contacte al administrador."
+                android:textColor="#E0E0E0"
+                android:textSize="13sp"
+                android:layout_marginTop="4dp"/>
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- Contenedor de Funciones Permitidas en Modo Gratuito -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        app:layout_constraintTop_toBottomOf="@id/cardLicenciaWarning"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Funciones Disponibles de Administrador:"
+            android:textColor="#888888"
+            android:textSize="14sp"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Función 1: Alta de Domicilios (Sin envío de WhatsApp) -->
+        <Button
+            android:id="@+id/btnAltaDomiciliosLimitado"
+            android:layout_width="280dp"
+            android:layout_height="55dp"
+            android:text="Catálogo de Domicilios 🏠"
+            android:backgroundTint="#424242"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- Función 2: Ver Bitácora Local -->
+        <Button
+            android:id="@+id/btnVerBitacoraLimitado"
+            android:layout_width="280dp"
+            android:layout_height="55dp"
+            android:text="Bitácora de Accesos 📜"
+            android:backgroundTint="#424242"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Botón de reintento para forzar sincronización con S3 -->
+        <Button
+            android:id="@+id/btnReintentarLicencia"
+            android:layout_width="220dp"
+            android:layout_height="wrap_content"
+            android:text="Verificar Licencia de Red 🔄"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:textColor="#00E676"/>
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

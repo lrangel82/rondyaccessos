@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".caseta.CasetaCentralActivity"
+    android:background="#121212"
+    android:padding="8dp">
+
+    <!-- Fila de Encabezado con Métricas Totales (Mapeado de Python Parte 3) -->
+    <LinearLayout
+        android:id="@+id/headerMétricas"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="#1E1E1E"
+        android:padding="10dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <TextView
+            android:id="@+id/lblServerStatus"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.5"
+            android:text="Servidor Rondy: Inicializando..."
+            android:textColor="#00E676"
+            android:textStyle="bold"
+            android:textSize="14sp"/>
+
+        <TextView
+            android:id="@+id/lblTotalIngresos"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Ingresos Hoy: 0"
+            android:textColor="#FFFFFF"
+            android:textAlignment="viewEnd"
+            android:textSize="14sp"/>
+
+        <TextView
+            android:id="@+id/lblTotalSalidas"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Salidas Hoy: 0"
+            android:textColor="#FFFFFF"
+            android:textAlignment="viewEnd"
+            android:textSize="14sp"/>
+    </LinearLayout>
+
+    <!-- REJILLA DE RECTÁNGULOS (Mosaico de 2x2 para Satélites Activos en Red) -->
+    <GridLayout
+        android:id="@+id/gridMosaico"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginTop="8dp"
+        android:columnCount="2"
+        android:rowCount="2"
+        app:layout_constraintTop_toBottomOf="@id/headerMétricas"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <!-- Cuadro 1: Ingreso Vehicular -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cardIngresoVehicular"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_columnWeight="1"
+            android:layout_rowWeight="1"
+            app:cardBackgroundColor="#212121"
+            app:cardCornerRadius="6dp"
+            android:layout_margin="6dp">
+            <include android:id="@+id/viewIngresoVehicular" layout="@layout/item_satelite_monitor"/>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Cuadro 2: Ingreso Peatonal -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cardIngresoPeatonal"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_columnWeight="1"
+            android:layout_rowWeight="1"
+            app:cardBackgroundColor="#212121"
+            app:cardCornerRadius="6dp"
+            android:layout_margin="6dp">
+            <include android:id="@+id/viewIngresoPeatonal" layout="@layout/item_satelite_monitor"/>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Cuadro 3: Salida Vehicular -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cardSalidaVehicular"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_columnWeight="1"
+            android:layout_rowWeight="1"
+            app:cardBackgroundColor="#212121"
+            app:cardCornerRadius="6dp"
+            android:layout_margin="6dp">
+            <include android:id="@+id/viewSalidaVehicular" layout="@layout/item_satelite_monitor"/>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Cuadro 4: Salida Peatonal -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cardSalidaPeatonal"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_columnWeight="1"
+            android:layout_rowWeight="1"
+            app:cardBackgroundColor="#212121"
+            app:cardCornerRadius="6dp"
+            android:layout_margin="6dp">
+            <include android:id="@+id/viewSalidaPeatonal" layout="@layout/item_satelite_monitor"/>
+        </androidx.cardview.widget.CardView>
+    </GridLayout>
+
+    <!-- CONTENEDOR MODAL INCRUSTADO: Panel de Auditoría a Detalle Completo -->
+    <FrameLayout
+        android:id="@+id/panelDetalleAuditoria"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#E6000000"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true">
+        <include android:id="@+id/viewDetalleIncrustado" layout="@layout/layout_detalle_auditoria_caseta"/>
+    </FrameLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

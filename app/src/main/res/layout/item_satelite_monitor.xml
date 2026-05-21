@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <TextView
+        android:id="@+id/txtNombreSatelite"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="SATÉLITE VEHICULAR"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"
+        android:textSize="14sp"/>
+
+    <TextView
+        android:id="@+id/txtIpSatelite"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="IP: Desconectado"
+        android:textColor="#777777"
+        android:textSize="11sp"/>
+
+    <!-- Contenedor simulador del flujo de video capturado remotamente -->
+    <FrameLayout
+        android:id="@+id/previewVideoRemoto"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#000000"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="4dp">
+        <TextView
+            android:id="@+id/txtUltimaPlaca"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Sin capturas recientes"
+            android:textColor="#555555"
+            android:layout_gravity="center"
+            android:textSize="12sp"/>
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/txtEstatusLinea"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="• Fuera de línea"
+        android:textColor="#F44336"
+        android:textSize="12sp"
+        android:textStyle="bold"/>
+</LinearLayout>
