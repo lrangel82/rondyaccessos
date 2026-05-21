@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.larangel.rondyaccesos.RondyApplication
 import com.larangel.rondyaccesos.models.*
 import com.larangel.rondyaccesos.models.sockets.MessageType
 import com.larangel.rondyaccesos.models.sockets.RondySocketClient
@@ -39,6 +40,25 @@ class IngresoVehicularViewModel(
     var listadoMotivosPredefinidos: List<String> = emptyList()
     var todosLosDomiciliosCache: List<List<Any>> = emptyList() // calle, numero, clave
 
+    // Control parameters loaded dynamically from your S3 configuration
+    var urlCamaraPlacasRtsp: String = "rtsp://192.168.1.150:554/live/ch1"
+    var urlCamaraQrRtspFallback: String = ""
+    var usarCamaraLocalParaQr: Boolean = true
+
+    // State flows to toggle the hardware reconfiguration screens on connection drops
+    private val _camaraPlacaFalla = MutableStateFlow(false)
+    val camaraPlacaFalla: StateFlow<Boolean> = _camaraPlacaFalla.asStateFlow()
+
+    private val _camaraQrFalla = MutableStateFlow(false)
+    val camaraQrFalla: StateFlow<Boolean> = _camaraQrFalla.asStateFlow()
+
+    // Flag controlling the activation of the OCR processing task loop
+    private val _vlcStreamActive = MutableStateFlow(false)
+    val vlcStreamActive: StateFlow<Boolean> = _vlcStreamActive.asStateFlow()
+
+    private var qrCooldownActivo = false
+
+
     init {
         cargarConfiguracionesIniciales()
         reiniciarAsistenteCompleto()
@@ -66,6 +86,17 @@ class IngresoVehicularViewModel(
                 segundosRestantes = TIMEOUT_SEGUNDOS
             )
         }
+        viewModelScope.launch {
+            geminiVoiceAssistant.subtitulosState.collect { speechText ->
+                _uiState.update { it.copy(subtitulosAsistente = speechText) }
+            }
+        }
+        //Register this ViewModel's pipeline processor to the Application scope
+        val app = getApplication<RondyApplication>()
+        app.registroCallbackActivo = { calle, numero, nombre, tipo, placa ->
+            procesarEntidadesExtraidasPorGemini(calle, numero, nombre, tipo, placa)
+        }
+        controlarCicloDeVidaDeStreaming()
         iniciarTimerInactividad()
     }
 
@@ -87,6 +118,71 @@ class IngresoVehicularViewModel(
                 }
             } catch (e: CancellationException) {
                 // Cancelación controlada
+            }
+        }
+    }
+
+    // -- CAMARAS
+    fun actualizarUrlPlacasRtsp(nuevaUrl: String) {
+        urlCamaraPlacasRtsp = nuevaUrl
+        _camaraPlacaFalla.value = false
+        controlarCicloDeVidaDeStreaming()
+    }
+    fun cambiarOrigenQrAHardwareIp(url: String) {
+        usarCamaraLocalParaQr = false
+        urlCamaraQrRtspFallback = url
+        _camaraQrFalla.value = false
+    }
+    private fun controlarCicloDeVidaDeStreaming() {
+        val paso = _uiState.value.currentStep
+        val placaVacia = _uiState.value.placaInput.trim().isEmpty()
+
+        if (paso == CaptureStep.SELECCION_MOTIVO || (paso == CaptureStep.CAPTURA_PLACA && placaVacia)) {
+            _vlcStreamActive.value = true
+            Log.d("CameraManager", "Encendiendo Stream RTSP para lectura OCR de placas.")
+        } else {
+            _vlcStreamActive.value = false
+            Log.d("CameraManager", "Apagando Stream RTSP para liberar memoria y ancho de banda.")
+        }
+    }
+    fun registrarPlacaDetectadaPorOcr(placaOcr: String) {
+        val limpia = placaOcr.replace(Regex("[^a-zA-Z0-9]"), "").uppercase().trim()
+        if (limpia.length >= 3) {
+            _uiState.update { it.copy(placaInput = limpia) }
+            // Apagar la cámara de inmediato para liberar recursos (Principio de UI Optimista)
+            controlarCicloDeVidaDeStreaming()
+        }
+    }
+    fun reportarFallaConexionPlacas() {
+        _camaraPlacaFalla.value = true
+        _vlcStreamActive.value = false
+    }
+    fun reportarFallaConexionQr() {
+        _camaraQrFalla.value = true
+    }
+    fun procesarContenidoQrDetectado(rawText: String) {
+        if (qrCooldownActivo) return
+
+        // Validar el prefijo estricto de tu condominio (Mapeado de Python Parte 7)
+        if (rawText.startsWith("ginn")) {
+            val payloadLimpio = rawText.substring(4) // Eliminar el prefijo "ginn"
+            qrCooldownActivo = true
+
+            _uiState.update { current ->
+                current.copy(
+                    qrData = payloadLimpio,
+                    lblTopMensaje = "¡Código QR Válido Detectado! Procesando autorización...",
+                    currentStep = CaptureStep.PROCESANDO_AUTORIZACION
+                )
+            }
+
+            // TODO: Aquí puedes evaluar el payload si contiene "TERRAZA" o "VISITANTE"
+            // y saltar automáticamente los pasos del formulario.
+
+            // Bloqueo de bucle por 10 segundos (Equivalente al after(10000) de tu script Python)
+            viewModelScope.launch {
+                delay(10000)
+                qrCooldownActivo = false
             }
         }
     }
@@ -118,6 +214,7 @@ class IngresoVehicularViewModel(
                 )
             }
         }
+        controlarCicloDeVidaDeStreaming()
     }
 
     fun seleccionarCalle(calle: String) {
@@ -129,6 +226,7 @@ class IngresoVehicularViewModel(
                 lblTopMensaje = "Seleccione el número de casa para la calle $calle:"
             )
         }
+        controlarCicloDeVidaDeStreaming()
     }
 
     fun seleccionarNumero(numero: String) {
@@ -140,6 +238,7 @@ class IngresoVehicularViewModel(
                 lblTopMensaje = "Ingrese el nombre del conductor:"
             )
         }
+        controlarCicloDeVidaDeStreaming()
     }
 
     fun guardarNombreYPasarAPlacas(nombre: String) {
@@ -151,6 +250,7 @@ class IngresoVehicularViewModel(
                 lblTopMensaje = "Valide la placa tecleada o leída por la cámara:"
             )
         }
+        controlarCicloDeVidaDeStreaming()
     }
 
     // --- PROCESAMIENTO CON WHATSAPP Y ENLACE DE RENDERING API ---
@@ -250,8 +350,16 @@ class IngresoVehicularViewModel(
         _uiState.update { it.copy(subtitulosAsistente = "🎤 Escuchado: \"$textoEscuchado\"") }
         val pasoActual = _uiState.value.currentStep
 
+        val listaPalabras = query.split(Regex("\\s+")).filter { it.isNotEmpty() }
+        val numeroDePalabras = listaPalabras.size
+
         // ESTRATEGIA EN LÍNEA: Si hay red, delegamos la extracción estructurada a Gemini
         viewModelScope.launch(Dispatchers.Default) {
+            if (numeroDePalabras == 1) {
+                Log.d("ViewModelIA", "Comando de una sola palabra detectado ('$query'). Evitando Gemini.")
+                procesarEntradaVozLocalFallback(query.uppercase(), pasoActual)
+                return@launch
+            }
             if (dataRaw.isNetworkAvailable()) {
                 viewModelScope.launch(Dispatchers.IO) {
                     try {
@@ -271,6 +379,7 @@ class IngresoVehicularViewModel(
                         // El SDK procesará la locución libre del usuario y rellenará los campos correspondientes
                         geminiVoiceAssistant.procesarEntradaVoz(textoEscuchado, datosAcumuladosJson)
 
+
                     } catch (e: Exception) {
                         Log.e("ViewModelIA", "Error en el pipeline de Gemini: ${e.message}")
                         // Si la llamada a la nube truena, caemos de forma segura en el emparejador local
@@ -282,6 +391,111 @@ class IngresoVehicularViewModel(
             } else {
                 // ESTRATEGIA FUERA DE LÍNEA: Procesamiento determinista mediante comandos directos
                 procesarEntradaVozLocalFallback(query, pasoActual)
+            }
+        }
+    }
+    /**
+     * Core router that intercepts extracted entities from the AI voice engine,
+     * performs hard/fuzzy address validation, updates steps, and handles UI refresh.
+     */
+    private fun procesarEntidadesExtraidasPorGemini(calle: String, numero: String, nombre: String, tipo: String, placa: String) {
+        viewModelScope.launch(Dispatchers.Default) {
+            val stepActual = _uiState.value.currentStep
+
+            // --- PASO 0: MOTIVO ---
+            if (tipo.isNotEmpty()) {
+                withContext(Dispatchers.Main) {
+                    // Match forzado contra la lista del archivo .ini (tiporegistro)
+                    val matchMotivo = listadoMotivosPredefinidos.find { it.uppercase() == tipo }
+                    if (matchMotivo != null) {
+                        seleccionarMotivo(matchMotivo)
+                    } else {
+                        // Si no es un comando exacto, buscamos si la frase contiene la palabra clave
+                        val coincidenciaParcial =
+                            listadoMotivosPredefinidos.find { tipo.contains(it.uppercase()) }
+                        if (coincidenciaParcial != null) {
+                            seleccionarMotivo(coincidenciaParcial)
+                        } else {
+                            _uiState.update {
+                                it.copy(
+                                    subtitulosAsistente = "🤖 No reconozco ese motivo. Elija uno de la lista en pantalla.",
+                                    currentStep = CaptureStep.SELECCION_MOTIVO,
+                                    tipoInput = "",
+                                )
+                            }
+                        }
+                    }
+                }
+
+            }
+            // --- PASO 1 & 2: VALIDACIÓN DE CALLE Y NÚMERO (DIRECCIÓN SIMILAR) ---
+            if (calle.isNotEmpty() && numero.isNotEmpty()) {
+                // Execute your pre-compiled fuzzy matching utility method on background storage threads
+                val posiblesDomiciliosSimilares: List<List<Any>> = dataRaw.getDomiciliosSimilares(calle, numero)
+
+                withContext(Dispatchers.Main) {
+                    when {
+                        posiblesDomiciliosSimilares.isEmpty() -> {
+                            // No matches found: Notify user over TTS and keep grid available for selection
+                            _uiState.update { it.copy(lblTopMensaje = "Dirección no localizada. Por favor use los botones.") }
+                        }
+                        posiblesDomiciliosSimilares.size == 1 -> {
+                            // Exact unique match verified: Extract accurate row cells cleanly
+                            val matchExacto = posiblesDomiciliosSimilares[0]
+                            val calleVerificada = matchExacto[0].toString()
+                            val numeroVerificado = matchExacto[1].toString()
+
+                            _uiState.update {
+                                it.copy(
+                                    calleInput = calleVerificada,
+                                    numeroInput = numeroVerificado,
+                                    currentStep = CaptureStep.CAPTURA_NOMBRE, // Advance step automatically
+                                    lblTopMensaje = "Domicilio validado: $calleVerificada #$numeroVerificado. Ingrese Nombre."
+                                )
+                            }
+                            iniciarTimerInactividad()
+                        }
+                        posiblesDomiciliosSimilares.size > 1 -> {
+                            // Multiple partial matches: Update local list cache to force activity to render selection chips
+                            // Mapped from your python implementation (open_multiple_domicilios_dialog criteria)
+                            val textoDomiciliosEncontrados = posiblesDomiciliosSimilares.joinToString(separator = ", ") { fila ->
+                                val calleFila = fila.getOrNull(0)?.toString() ?: ""
+                                val numeroFila = fila.getOrNull(1)?.toString() ?: ""
+                                "$calleFila:$numeroFila"
+                            }
+                            val mensajeCompleto = "Múltiples opciones encontradas ($textoDomiciliosEncontrados). Seleccione con los botones el correcto:"
+                            withContext(Dispatchers.Main) {
+                                _uiState.update { current ->
+                                    current.copy(
+                                        lblTopMensaje = mensajeCompleto,
+                                        currentStep = CaptureStep.SELECCION_CALLE, // 🔄 Forzar el paso a captura de calle
+                                        listaDomiciliosFiltrados = posiblesDomiciliosSimilares // Guardar las coincidencias para la Activity
+                                    )
+                                }
+                                iniciarTimerInactividad()
+                            }
+                            // In real deployment, you re-map 'todosLosDomiciliosCache' with 'posiblesDomiciliosSimilares'
+                            // to automatically mutate your grid layer to display only the matched rows.
+                        }
+                    }
+                }
+            }
+
+            // --- PASO 3: CAPTURA DE NOMBRE VIA VOICE ASYNC ---
+            if (stepActual == CaptureStep.CAPTURA_NOMBRE && nombre.isNotEmpty()) {
+                withContext(Dispatchers.Main) {
+                    guardarNombreYPasarAPlacas(nombre)
+                }
+            }
+
+            // --- PASO 4: CAPTURA Y VALIDACIÓN DE PLACAS ---
+            if (stepActual == CaptureStep.CAPTURA_PLACA && placa.isNotEmpty()) {
+                val placaSanitizada = tipo.replace(Regex("[^a-zA-Z0-9]"), "").uppercase().trim()
+                if (placaSanitizada.length >= 3) {
+                    withContext(Dispatchers.Main) {
+                        dispararProtocoloDeSeguridadYWhatsApp(placaSanitizada, "Autorizado por Voz Inteligente")
+                    }
+                }
             }
         }
     }
@@ -368,5 +582,12 @@ class IngresoVehicularViewModel(
     // Función utilitaria de extensión rápida para comparar strings ignorando mayúsculas
     private fun String.equalsIgnoreCase(other: String): Boolean {
         return this.lowercase() == other.lowercase()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        // Anti-memory leak rule: Clear callback reference when the current view session is destroyed
+        val app = getApplication<Application>() as RondyApplication
+        app.registroCallbackActivo = null
     }
 }

@@ -15,7 +15,7 @@ import java.util.Locale
 class GeminiVoiceAssistant(
     private val context: Context,
     private val apiKey: String,
-    private val onDataExtracted: (calle: String, numero: String, nombre: String, tipo: String) -> Unit
+    private val onDataExtracted: (calle: String, numero: String, nombre: String, tipo: String, placa: String) -> Unit
 ) : TextToSpeech.OnInitListener {
 
     private var tts: TextToSpeech = TextToSpeech(context, this)
@@ -36,9 +36,9 @@ class GeminiVoiceAssistant(
                             "Tu objetivo es preguntarle a qué calle, número de casa va, cuál es su nombre y el motivo de su visita. " +
                             "Siempre debes responder en formato JSON plano con dos llaves estrictas: " +
                             "1) 'speech': El texto corto y amigable que le dirás en voz alta al visitante. " +
-                            "2) 'extracted_data': Un objeto con las llaves 'calle', 'numero', 'nombre', 'tipo' extraídas de la conversación. " +
+                            "2) 'extracted_data': Un objeto con las llaves 'calle', 'numero', 'nombre', 'tipo', 'placa' extraídas de la conversación. " +
                             "Si el campo aún no se conoce, déjalo vacío ''. Ejemplo de respuesta: " +
-                            "{\"speech\": \"Bienvenido, ¿a qué domicilio se dirige?\", \"extracted_data\": {\"calle\":\"\",\"numero\":\"\",\"nombre\":\"\",\"tipo\":\"\"}}")
+                            "{\"speech\": \"Bienvenido, ¿a qué domicilio se dirige?\", \"extracted_data\": {\"calle\":\"\",\"numero\":\"\",\"nombre\":\"\",\"tipo\":\"\",\"placa\":\"\"}}")
                 }
             )
         }
@@ -78,7 +78,8 @@ class GeminiVoiceAssistant(
                     dataExtracted.optString("calle", ""),
                     dataExtracted.optString("numero", ""),
                     dataExtracted.optString("nombre", ""),
-                    dataExtracted.optString("tipo", "")
+                    dataExtracted.optString("tipo", ""),
+                    dataExtracted.optString("placa", "")
                 )
             }
         } catch (e: Exception) {

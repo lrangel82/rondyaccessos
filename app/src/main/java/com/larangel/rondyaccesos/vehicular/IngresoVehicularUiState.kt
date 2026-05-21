@@ -20,6 +20,8 @@ data class IngresoVehicularUiState(
     val whatsappStatus: WhatsappAuthStatus = WhatsappAuthStatus.Oculto,
     val subtitulosAsistente: String = "\uD83E\uDD16 Esperando instrucción...",
     val asistenteActivo: Boolean = false,
-    val lectorQrActivo: Boolean = false
+    val lectorQrActivo: Boolean = false,
+    val qrData: String = "",
+    val listaDomiciliosFiltrados: List<List<Any>> = emptyList()
 )
 

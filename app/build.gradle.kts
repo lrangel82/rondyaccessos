@@ -75,12 +75,12 @@ dependencies {
     implementation("androidx.camera:camera-core:$cameraxVersion")
     implementation("androidx.camera:camera-camera2:$cameraxVersion")
     implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
-
-    //  Esta dependencia específica resuelve el componente PreviewView en el XML
     implementation("androidx.camera:camera-view:$cameraxVersion")
-
-    // Opcional: Extensiones para capturas de video o efectos avanzados
     implementation("androidx.camera:camera-extensions:$cameraxVersion")
+    implementation("org.videolan.android:libvlc-all:3.6.0")
+
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.0")
+    implementation("com.google.mlkit:barcode-scanning:17.2.0")
 
     implementation("com.google.zxing:core:3.5.3")
 

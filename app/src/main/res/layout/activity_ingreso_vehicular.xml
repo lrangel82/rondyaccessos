@@ -36,7 +36,7 @@
     <LinearLayout
         android:id="@+id/columnaCamaras"
         android:layout_width="0dp"
-        android:layout_height="130dp"
+        android:layout_height="200dp"
         android:orientation="horizontal"
         android:weightSum="2"
         android:layout_marginTop="8dp"
@@ -44,23 +44,71 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <FrameLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
+        <!-- 1. Contenedor de Cámara de Placas (RTSP) -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
             android:layout_weight="1"
-            android:background="#000000"
-            android:layout_marginEnd="4dp">
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="CAM PLACAS" android:textColor="#888888" android:layout_gravity="center" android:textSize="10sp"/>
-        </FrameLayout>
+            android:layout_marginBottom="4dp">
 
-        <FrameLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
+            <!-- Native Video Layout Surface for LibVLC Streaming -->
+            <org.videolan.libvlc.util.VLCVideoLayout
+                android:id="@+id/vlcPlacaSurface"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#000000" />
+
+            <!-- Fallback overlay configuration view if connection drops -->
+            <LinearLayout
+                android:id="@+id/layoutFixCamaraPlaca"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#E6212121"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:visibility="gone"
+                android:padding="8dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="⚠️ Error de Señal RTSP" android:textColor="#FF5252" android:textStyle="bold" android:textSize="12sp"/>
+                <EditText android:id="@+id/txtUrlRtspFix" android:layout_width="match_parent" android:layout_height="35dp" android:background="#333333" android:textColor="#FFFFFF" android:hint="rtsp://192.168.1.200:554/stream1" android:textSize="11sp" android:paddingStart="6dp" android:layout_marginTop="4dp"/>
+                <Button android:id="@+id/btnReconectarRtsp" android:layout_width="wrap_content" android:layout_height="32dp" android:text="Reconectar" android:textSize="10sp" android:layout_marginTop="4dp"/>
+            </LinearLayout>
+        </RelativeLayout>
+
+        <!-- 2. Contenedor de Cámara de Conductor / QR (Nativa o IP) -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
             android:layout_weight="1"
-            android:background="#000000"
-            android:layout_marginStart="4dp">
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="CAM ROSTRO/QR" android:textColor="#888888" android:layout_gravity="center" android:textSize="10sp"/>
-        </FrameLayout>
+            android:layout_marginTop="4dp">
+
+            <!-- Native CameraX Preview for Local Device Frame Decoding -->
+            <androidx.camera.view.PreviewView
+                android:id="@+id/cameraXQrPreview"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#000000" />
+
+            <!-- Alternative LibVLC layout if the user configures an IP camera instead of local hardware -->
+            <org.videolan.libvlc.util.VLCVideoLayout
+                android:id="@+id/vlcQrSurfaceFallback"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#000000"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/layoutFixCamaraQr"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#E6212121"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:visibility="gone"
+                android:padding="8dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="⚙️ Configurar Origen QR" android:textColor="#00E676" android:textStyle="bold" android:textSize="12sp"/>
+                <Button android:id="@+id/btnCambiarA_IP" android:layout_width="wrap_content" android:layout_height="32dp" android:text="Usar Cámara IP (RTSP)" android:textSize="10sp" android:layout_marginTop="4dp"/>
+            </LinearLayout>
+        </RelativeLayout>
     </LinearLayout>
 
     <!-- COLUMNA DERECHA: ASISTENTE PASO A PASO SECCIONAL -->
@@ -101,9 +149,11 @@
 
         <!-- CONTENEDOR DINÁMICO: Grid de Botones Inyectados por Código -->
         <ScrollView
+            android:id="@+id/ScrollViewGridBotones"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1">
+            android:layout_weight="1"
+            tools:visibility="gone">
 
             <com.google.android.material.chip.ChipGroup
                 android:id="@+id/containerGridBotones"
@@ -119,9 +169,11 @@
             android:id="@+id/txtInputManual"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp"
-            android:visibility="gone"
+            android:background="@color/white"
+            android:textAlignment="center"
+            android:textColor="#050505"
+            android:textSize="34sp"
+            android:visibility="visible"
             android:inputType="textCapCharacters"
             android:layout_marginBottom="12dp"/>
 
