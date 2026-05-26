@@ -122,7 +122,16 @@ class SplashActivity : AppCompatActivity() {
                     SheetTable.initializeAll(mySettings)
 
                     // TODO: Disparar la descarga forzada o sync offline de DataRawRondin aquí
-                    delay(1000)
+                    val dataRaw = (application as RondyApplication).dataRawRondin
+                    val bitacoraAccesos = dataRaw.getBitacoraAccesos(forceLoad = true, createIfNotExist = true)
+                    txtStatus.text = txtStatus.text.toString() + "\n Bitacora:${bitacoraAccesos.count()}"
+                    delay(500)
+                    val domicilios      = dataRaw.getDomiciliosUbicacion(forceLoad = true)
+                    txtStatus.text = txtStatus.text.toString() + "\n Domicilios:${domicilios.count()}"
+                    delay(500)
+                    val whatsappTelefonos=dataRaw.getWhatsappTelefonos(forceLoad = true, createIfNotExist = true)
+                    txtStatus.text = txtStatus.text.toString() + "\n Telefonos Whatsapp:${whatsappTelefonos.count()}"
+                    delay(500)
                 } else {
                     txtStatus.text = "Licencia Inválida. Iniciando con funciones restringidas..."
                     delay(2000)

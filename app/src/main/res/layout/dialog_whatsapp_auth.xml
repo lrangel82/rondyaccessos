@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:gravity="center_horizontal">
+
+    <!-- Título de Acción -->
+    <TextView
+        android:id="@+id/tvDialogTitulo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:text="Solicitando Autorización WHATSAPP"
+        android:textColor="#333333"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <!-- Mensaje Descriptivo Dinámico -->
+    <TextView
+        android:id="@+id/tvDialogMensaje"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Solicitando la autorización para el ingreso..."
+        android:textSize="16sp"
+        android:gravity="center"
+        android:textColor="#555555"
+        android:layout_marginBottom="16dp"/>
+
+    <!-- Contador de Segundos Transcurridos (dialog.after) -->
+    <TextView
+        android:id="@+id/tvDialogContador"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="segundos transcurridos 0 seg"
+        android:textSize="15sp"
+        android:textColor="#0288D1"
+        android:textStyle="bold"
+        android:layout_marginBottom="24dp"/>
+
+    <!-- Botón de Escape del Guardia -->
+    <Button
+        android:id="@+id/btnDialogCancelar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Cerrar/Cancelar"
+        android:backgroundTint="#757575"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        style="@style/Widget.MaterialComponents.Button"/>
+
+</LinearLayout>

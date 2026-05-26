@@ -12,7 +12,9 @@ class IngresoVehicularViewModelFactory(private val application: RondyApplication
             return IngresoVehicularViewModel(
                 application = application,
                 dataRaw = application.dataRawRondin,
-                geminiVoiceAssistant = application.geminiVoiceAssistant
+                geminiVoiceAssistant = application.geminiVoiceAssistant,
+                apiService = application.botCasetaApiService,
+                mySettings = application.mySettings
             ) as T
         }
         throw IllegalArgumentException("Clase ViewModel desconocida")

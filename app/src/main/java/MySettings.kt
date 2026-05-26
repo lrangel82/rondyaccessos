@@ -24,12 +24,12 @@ class MySettings(private val context: Context) {
     }
 
     suspend fun fetchAndProcessS3Config(bucketName: String, regionStr: String, targetHKey: String): Boolean = withContext(Dispatchers.IO) {
-        //Verificar si ya procesamos esto hoy
-        val numDayValidado = getInt("DIA_VALIDADO_CODIGO",0)
-        // Si ya validamos el día de hoy con éxito, omitimos la descarga de red y retornamos true
-        if (numDayValidado == LocalDate.now().dayOfMonth && getInt("APP_ACTIVADA", 0) == 1) {
-            return@withContext true
-        }
+//        //Verificar si ya procesamos esto hoy
+//        val numDayValidado = getInt("DIA_VALIDADO_CODIGO",0)
+//        // Si ya validamos el día de hoy con éxito, omitimos la descarga de red y retornamos true
+//        if (numDayValidado == LocalDate.now().dayOfMonth && getInt("APP_ACTIVADA", 0) == 1) {
+//            return@withContext true
+//        }
 
         val regex = Regex("configCasetaApp/config\\.ini_.*[0-9.]+")
         val bucketUrl = "https://$bucketName.s3.$regionStr.amazonaws.com"
@@ -85,6 +85,7 @@ class MySettings(private val context: Context) {
             val REGISTRO_CARROS_SPREADSHEET_ID  = props.getProperty("googlesheet_registro_carros_id") ?: ""
             val PARKING_SPREADSHEET_ID          = props.getProperty("googlesheet_parking_id") ?: ""
             val PERMISOS_SPREADSHEET_ID         = props.getProperty("googlesheet_permisos_ids") ?: "[]"
+            val WHATSAPP_SPREADSHEET_ID         = props.getProperty("googlesheet_telefonos_whatsapp") ?: "[]"
             val COTO                            = if(props.getProperty("apptype") == "admon1") "coto1" else "coto2"
             val WS_AUTOS_REGISTRADOS            = props.getProperty("worksheet_autos_registrados") + "$POSTFIX_SHEETNAME"
             val WS_DOMICILIOS_UBICACION         = props.getProperty("worksheet_domicilios") + "$POSTFIX_SHEETNAME"
@@ -99,12 +100,15 @@ class MySettings(private val context: Context) {
             val WS_ALARMAS_RONDIN               = props.getProperty("worksheet_alarmas_rondin") + "$POSTFIX_SHEETNAME"
             val GEMINI_API_KEY                  = props.getProperty("gemini_api_key")
             val CREDENTIALS_GOOGLE_API          = props.getProperty("credentialsgoogleapi")
+            val TOKEN_API_BOTCASETA             = props.getProperty("token_api_botcaseta")
+            val API_BOTCASETA                   = props.getProperty("api_botcaseta")
 
             putString("APP_NAME", APP_NAME)
             putString("POSTFIX_SHEETNAME", POSTFIX_SHEETNAME)
             putString("REGISTRO_CARROS_SPREADSHEET_ID", REGISTRO_CARROS_SPREADSHEET_ID)
             putString("PARKING_SPREADSHEET_ID", PARKING_SPREADSHEET_ID)
             putString("PERMISOS_SPREADSHEET_ID", PERMISOS_SPREADSHEET_ID)
+            putString("WHATSAPP_SPREADSHEET_ID", WHATSAPP_SPREADSHEET_ID)
             putString("COTO", COTO)
             putString("WS_AUTOS_REGISTRADOS", WS_AUTOS_REGISTRADOS)
             putString("WS_DOMICILIOS_UBICACION", WS_DOMICILIOS_UBICACION)
@@ -119,6 +123,9 @@ class MySettings(private val context: Context) {
             putString("WS_ALARMAS_RONDIN", WS_ALARMAS_RONDIN)
             putString("GEMINI_API_KEY", GEMINI_API_KEY)
             putString("CREDENTIALS_GOOGLE_API", CREDENTIALS_GOOGLE_API)
+            putString("TOKEN_API_BOTCASETA", TOKEN_API_BOTCASETA)
+            putString("API_BOTCASETA", API_BOTCASETA)
+
 
             //CLEAN CACHE TIME
             SheetTable.values().forEach{table ->

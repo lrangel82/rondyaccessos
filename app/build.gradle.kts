@@ -87,7 +87,13 @@ dependencies {
     implementation("com.google.api-client:google-api-client:2.4.0")
     implementation("com.google.api-client:google-api-client-android:2.4.0")
     implementation("com.google.http-client:google-http-client-gson:1.44.1")
+    implementation("com.google.auth:google-auth-library-oauth2-http:1.30.0")
+    implementation("com.google.auth:google-auth-library-credentials:1.30.0")
     implementation("com.google.apis:google-api-services-sheets:v4-rev20260213-2.0.0")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
+
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+
+    implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")
 
 }

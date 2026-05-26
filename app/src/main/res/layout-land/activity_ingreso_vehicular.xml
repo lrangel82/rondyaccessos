@@ -5,6 +5,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:layout_marginTop="?attr/actionBarSize"
     tools:context=".vehicular.IngresoVehicularActivity"
     android:background="#121212"
     android:padding="8dp">
@@ -23,6 +24,49 @@
             android:textColor="#00E676"
             android:textSize="20sp"
             android:textStyle="bold" />
+
+        <LinearLayout
+            android:id="@+id/panelEstadoMicofono"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_toStartOf="@+id/btnMenuConfiguracion"
+            android:layout_marginEnd="16dp"
+            android:background="#212121"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp">
+
+            <!-- Círculo indicador de color -->
+            <View
+                android:id="@+id/indicadorColorMicro"
+                android:layout_width="12dp"
+                android:layout_height="12dp"
+                android:background="@android:color/darker_gray"
+                android:layout_marginEnd="6dp"/>
+
+            <TextView
+                android:id="@+id/lblEstadoHardwareVoz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="INACTIVO"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold"
+                android:textSize="12sp"/>
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btnMenuConfiguracion"
+            android:layout_width="wrap_content"
+            android:layout_height="35dp"
+            android:layout_toStartOf="@+id/lblTimerInactividad"
+            android:layout_marginEnd="16dp"
+            android:text="⚙️"
+            android:textSize="11sp"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:textColor="#FFFFFF"/>
         <TextView
             android:id="@+id/lblTimerInactividad"
             android:layout_width="wrap_content"
@@ -50,16 +94,18 @@
         <!-- 1. Contenedor de Cámara de Placas (RTSP) -->
         <RelativeLayout
             android:layout_width="match_parent"
-            android:layout_height="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginBottom="4dp"
             android:layout_weight="1"
-            android:layout_marginBottom="4dp">
+            tools:visibility="visible">
 
             <!-- Native Video Layout Surface for LibVLC Streaming -->
             <org.videolan.libvlc.util.VLCVideoLayout
                 android:id="@+id/vlcPlacaSurface"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:background="#000000" />
+                android:background="#000000"
+                android:visibility="visible" />
 
             <!-- Fallback overlay configuration view if connection drops -->
             <LinearLayout
@@ -67,29 +113,54 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:background="#E6212121"
-                android:orientation="vertical"
                 android:gravity="center"
-                android:visibility="gone"
-                android:padding="8dp">
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="⚠️ Error de Señal RTSP" android:textColor="#FF5252" android:textStyle="bold" android:textSize="12sp"/>
-                <EditText android:id="@+id/txtUrlRtspFix" android:layout_width="match_parent" android:layout_height="35dp" android:background="#333333" android:textColor="#FFFFFF" android:hint="rtsp://192.168.1.200:554/stream1" android:textSize="11sp" android:paddingStart="6dp" android:layout_marginTop="4dp"/>
-                <Button android:id="@+id/btnReconectarRtsp" android:layout_width="wrap_content" android:layout_height="32dp" android:text="Reconectar" android:textSize="10sp" android:layout_marginTop="4dp"/>
+                android:orientation="vertical"
+                android:padding="8dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⚠️ Error de Señal RTSP"
+                    android:textColor="#FF5252"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <EditText
+                    android:id="@+id/txtUrlRtspFix"
+                    android:layout_width="match_parent"
+                    android:layout_height="35dp"
+                    android:layout_marginTop="4dp"
+                    android:background="#333333"
+                    android:hint="rtsp://192.168.1.200:554/stream1"
+                    android:paddingStart="6dp"
+                    android:textColor="#FFFFFF"
+                    android:textSize="11sp" />
+
+                <Button
+                    android:id="@+id/btnReconectarRtsp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:layout_marginTop="4dp"
+                    android:text="Reconectar"
+                    android:textSize="10sp" />
             </LinearLayout>
         </RelativeLayout>
 
         <!-- 2. Contenedor de Cámara de Conductor / QR (Nativa o IP) -->
         <RelativeLayout
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:layout_marginTop="4dp">
+            android:layout_height="match_parent"
+            android:layout_marginTop="4dp"
+            android:layout_weight="1">
 
             <!-- Native CameraX Preview for Local Device Frame Decoding -->
             <androidx.camera.view.PreviewView
                 android:id="@+id/cameraXQrPreview"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:background="#000000" />
+                android:background="#FF0000"
+                app:implementationMode="compatible" />
 
             <!-- Alternative LibVLC layout if the user configures an IP camera instead of local hardware -->
             <org.videolan.libvlc.util.VLCVideoLayout
@@ -104,12 +175,26 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:background="#E6212121"
-                android:orientation="vertical"
                 android:gravity="center"
-                android:visibility="gone"
-                android:padding="8dp">
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="⚙️ Configurar Origen QR" android:textColor="#00E676" android:textStyle="bold" android:textSize="12sp"/>
-                <Button android:id="@+id/btnCambiarA_IP" android:layout_width="wrap_content" android:layout_height="32dp" android:text="Usar Cámara IP (RTSP)" android:textSize="10sp" android:layout_marginTop="4dp"/>
+                android:orientation="vertical"
+                android:padding="8dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="⚙️ Configurar Origen QR"
+                    android:textColor="#00E676"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btnCambiarA_IP"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:layout_marginTop="4dp"
+                    android:text="Usar Cámara IP (RTSP)"
+                    android:textSize="10sp" />
             </LinearLayout>
         </RelativeLayout>
     </LinearLayout>
@@ -208,7 +293,18 @@
                 android:layout_weight="1"
                 android:text="Siguiente ➡️"
                 android:layout_marginStart="6dp"/>
+
         </LinearLayout>
+
+        <TextView
+            android:id="@+id/lbStatusAsistente"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Estado asistente"
+            android:textAlignment="viewEnd"
+            android:textAppearance="@style/TextAppearance.AppCompat.Small"
+            android:textColor="#03A9F4"
+            android:textStyle="italic" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -3,6 +3,7 @@ package com.larangel.rondyaccesos
 import android.app.Application
 import com.larangel.rondyaccesos.models.DataRawRondin
 import com.larangel.rondyaccesos.models.MySettings
+import com.larangel.rondyaccesos.models.network.BotCasetaApiService
 import com.larangel.rondyaccesos.utils.GeminiVoiceAssistant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,15 +21,22 @@ class RondyApplication : Application() {
         DataRawRondin(applicationContext, applicationScope)
     }
 
+    val mySettings: MySettings by lazy { MySettings(this) }
+
     val geminiVoiceAssistant: GeminiVoiceAssistant by lazy {
-        val mySettings = MySettings(applicationContext)
-        //val apiKey = mySettings.getString("GEMINI_API_KEY", "")
-        val apiKey =""
+
+        val apiKey = mySettings.getString("GEMINI_API_KEY", "")
+        //val apiKey =""
 
         GeminiVoiceAssistant(applicationContext, apiKey) { calle, numero, nombre, tipo, placa ->
             /// 🚀 INTERCEPTION TRICK: Forward the extraction payload directly
             // to whichever ViewModel has its callback currently registered!
             registroCallbackActivo?.invoke(calle, numero, nombre, tipo, placa)
         }
+    }
+
+    val botCasetaApiService: BotCasetaApiService by lazy {
+        // Inicialización de tu servicio de red local/remoto pasando la configuración
+        BotCasetaApiService.create(mySettings)
     }
 }

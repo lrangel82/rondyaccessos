@@ -1,7 +1,7 @@
 package com.larangel.rondyaccesos.vehicular
 
-import com.larangel.rondyaccesos.models.WhatsappAuthStatus
 import com.larangel.rondyaccesos.models.CaptureStep
+import com.larangel.rondyaccesos.models.network.WhatsappAuthStatus
 
 data class IngresoVehicularUiState(
     val lblTopMensaje: String = "Esperando vehículo...",
@@ -13,11 +13,12 @@ data class IngresoVehicularUiState(
     val tipoInput: String = "",
     val conductorInput: String = "",
     val descripcionInput: String = "",
+    val status: String = "",
     val extencionesTxt: String = "",
     val deudorBloqueo: Boolean = false,
     val mostrarDialogoPaqueteria: Boolean = false,
     val listaPaqueteria: List<Pair<String, String>> = emptyList(),
-    val whatsappStatus: WhatsappAuthStatus = WhatsappAuthStatus.Oculto,
+    val whatsappStatus: WhatsappAuthStatus = WhatsappAuthStatus.Idle,
     val subtitulosAsistente: String = "\uD83E\uDD16 Esperando instrucción...",
     val asistenteActivo: Boolean = false,
     val lectorQrActivo: Boolean = false,

@@ -26,7 +26,6 @@ import com.google.mlkit.vision.common.InputImage
 import com.larangel.rondyaccesos.RondyApplication
 import com.larangel.rondyaccesos.databinding.ActivityIngresoVehicularBinding
 import com.larangel.rondyaccesos.models.CaptureStep
-import com.larangel.rondyaccesos.models.WhatsappAuthStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -39,13 +38,23 @@ import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 import android.annotation.SuppressLint
+import android.app.AlertDialog
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.larangel.rondyaccesos.ui.VigilanteConfigActivity
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import android.speech.tts.UtteranceProgressListener
+import android.widget.Button
+import android.widget.TextView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import com.larangel.rondyaccesos.models.network.WhatsappAuthStatus
+import com.larangel.rondyaccesos.R
 
 
 class IngresoVehicularActivity : AppCompatActivity() {
@@ -54,6 +63,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
     private val viewModel: IngresoVehicularViewModel by viewModels {
         IngresoVehicularViewModelFactory(application as RondyApplication)
     }
+    private var whatsappDialog: AlertDialog? = null
 
     private var speechRecognizer: SpeechRecognizer? = null
     private var speechIntent: Intent? = null
@@ -75,6 +85,19 @@ class IngresoVehicularActivity : AppCompatActivity() {
     private var cameraProvider: ProcessCameraProvider? = null
     private var cameraExecutor: ExecutorService? = Executors.newSingleThreadExecutor()
     private val qrScannerClient = BarcodeScanning.getClient()
+    private val solicitarPermisoCamaraLanzador = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { permisoConcedido ->
+        if (permisoConcedido) {
+            // Si el usuario presiona "Permitir", encendemos CameraX de inmediato
+            binding.cameraXQrPreview.post {
+                configurarEIniciarCameraXFrontal()
+            }
+        } else {
+            Toast.makeText(this, "Se requiere el permiso de cámara para escanear códigos QR", Toast.LENGTH_LONG).show()
+            viewModel.reportarFallaConexionQr()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,14 +105,22 @@ class IngresoVehicularActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         configurarAccionesGlobales()
-        observarCicloDelAsistente()
-        verificarPermisosYConfigurarEscucha()
 
+        //Placas
         inicializarContenedorVLC()
         configurarListenersDeFalla()
         observarCicloDeVidaDeCamaras()
+
         //QR
-        configurarEIniciarCameraXFrontal()
+        verificarPermisoDeCamaraAutomatizado()
+        //Microfono
+        verificarPermisosYConfigurarEscucha()
+
+        //Whatsapp ciclo
+        registrarObservadorWhatsapp()
+
+        //Registrar ciclo
+        observarCicloDelAsistente()
     }
 
     private fun configurarAccionesGlobales() {
@@ -112,16 +143,31 @@ class IngresoVehicularActivity : AppCompatActivity() {
                     binding.txtInputManual.text.clear()
                 }
                 CaptureStep.CAPTURA_PLACA -> {
-                    viewModel.dispararProtocoloDeSeguridadYWhatsApp(valorManual, "Captura Manual Integrada")
+                    //viewModel.dispararProtocoloDeSeguridadYWhatsApp(valorManual, "Captura Manual Integrada")
+                    viewModel.guardarPlacaYSolicitarAutorizacion(valorManual)
                     binding.txtInputManual.text.clear()
                 }
                 else -> {}
             }
         }
+        binding.btnMenuConfiguracion.setOnClickListener {
+            // 1. Detener por completo los hilos de procesamiento y cerrar streams
+            apagarStreamVideoRtspPlacas() // Apaga LibVLC y el OcrJob
+
+            cameraProvider?.unbindAll() // Apaga CameraX Frontal de inmediato
+            cameraExecutor?.shutdown()  // Destruye el pool de hilos de la cámara
+
+            Toast.makeText(this, "Liberando hardware de video. Abriendo configuración...", Toast.LENGTH_SHORT).show()
+
+            // 2. Redireccionar de vuelta a la pantalla de configuración de satélites
+            val intentConfig = Intent(this, VigilanteConfigActivity::class.java)
+            startActivity(intentConfig)
+
+            finish() // Destruir esta Activity para limpiar la RAM por completo
+        }
     }
 
-    // --- MANEJO OPTIMIZADO DEL HARDWARE DE AUDIO (MODO HÍBRIDO) ---
-
+    // --- PERMISOS
     private fun verificarPermisosYConfigurarEscucha() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), RECORD_AUDIO_REQUEST_CODE)
@@ -129,43 +175,76 @@ class IngresoVehicularActivity : AppCompatActivity() {
             inicializarSpeechRecognizer()
         }
     }
+    private fun verificarPermisoDeCamaraAutomatizado() {
+        when {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED -> {
+                // El permiso ya existe (flujo normal de todos los días), encendemos la cámara frontal
+                binding.cameraXQrPreview.post {
+                    configurarEIniciarCameraXFrontal()
+                }
+            }
+            else -> {
+                // El permiso no existe (primer arranque de la app), lanzamos el cuadro de diálogo flotante del sistema
+                solicitarPermisoCamaraLanzador.launch(Manifest.permission.CAMERA)
+            }
+        }
+    }
 
+    // --- MICROFONO ----
     private fun inicializarSpeechRecognizer() {
         if (SpeechRecognizer.isRecognitionAvailable(this)) {
             speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
 
+            // 🚀 SOLUCIÓN 1: Forzar de manera estricta el idioma Español (es-MX) con metadatos completos
             speechIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale("es", "MX").toString())
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-MX")
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "es-MX")
+                putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, "es-MX")
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
             }
 
             speechRecognizer?.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
-                    binding.lblSubtitulosAsistente.text = "🤖 Micrófono activo (Modo Híbrido habilitado)"
+                    binding.lbStatusAsistente?.text = "🤖 Asistente Activo. Micrófono escuchando..."
+                    actualizarIndicadorVisualVoz("ESCUCHANDO 🎤", "#00E676")
                 }
 
-                override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) {} // Totalmente vacío para liberar rendimiento táctil
+                override fun onBeginningOfSpeech() { actualizarIndicadorVisualVoz("CAPTANDO VOZ 🗣️", "#2196F3") }
+                override fun onRmsChanged(rmsdB: Float) {} // Mantener vacío para no congelar rendimiento
                 override fun onBufferReceived(buffer: ByteArray?) {}
 
                 override fun onEndOfSpeech() {
-                    binding.lblSubtitulosAsistente.text = "🤖 Procesando voz..."
+                    binding.lbStatusAsistente?.text = "🤖 Procesando voz..."
+                    actualizarIndicadorVisualVoz("PROCESANDO 🧠", "#FFEB3B")
                 }
 
                 override fun onError(error: Int) {
-                    // Si el usuario toca la pantalla o el sistema está ocupado, metemos una pausa larga de enfriamiento
-                    intentarReinicioSeguroDelMicrofono(delayMillis = 1500)
+                    val motivoError = when (error) {
+                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "TIMEOUT (SILENCIO)"
+                        SpeechRecognizer.ERROR_NO_MATCH -> "NO SE ENTENDIÓ"
+                        SpeechRecognizer.ERROR_AUDIO -> "ERROR HARDWARE"
+                        SpeechRecognizer.ERROR_CLIENT -> "ERROR CLIENTE"
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "ERROR EN PERMISOS"
+                        SpeechRecognizer.ERROR_NETWORK -> "ERROR DE NETWORK"
+                        else -> "ERROR $error"
+                    }
+                    actualizarIndicadorVisualVoz("PAUSA ($motivoError)", "#FF5252")
+
+                    if (error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT || error == SpeechRecognizer.ERROR_NO_MATCH) {
+                        intentarReinicioSeguroDelMicrofono(delayMillis = 2000)
+                    }
                 }
 
                 override fun onResults(results: Bundle?) {
+                    actualizarIndicadorVisualVoz("LLAMANDO IA 🌐", "#FFEB3B")
                     val partidos = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     val textoEscuchadoCompleto = partidos?.get(0) ?: ""
 
                     if (textoEscuchadoCompleto.isNotEmpty()) {
                         onTranscripcionDeVozRecibidaPorAsistente(textoEscuchadoCompleto)
                     } else {
-                        intentarReinicioSeguroDelMicrofono(delayMillis = 1000)
+                        intentarReinicioSeguroDelMicrofono(delayMillis = 1500)
                     }
                 }
 
@@ -173,10 +252,45 @@ class IngresoVehicularActivity : AppCompatActivity() {
                 override fun onEvent(eventType: Int, params: Bundle?) {}
             })
 
-            encenderMicrofonoAsistente()
+            // 🚀 SOLUCIÓN 3: Configurar el Altavoz (TTS) para apagar el micrófono mientras habla
+            configurarCicloDeVidaDelAltavozTTS()
+
+            //encenderMicrofonoAsistente()
         }
     }
+    private fun configurarCicloDeVidaDelAltavozTTS() {
+        val app = application as com.larangel.rondyaccesos.RondyApplication
+        // Accedemos de forma segura a la instancia lazy de la IA que creamos en la Fase 5
+        //val asistenteVoz = app.generativeModel // O tu wrapper de la clase GeminiVoiceAssistant
 
+        // Suponiendo que tienes acceso al objeto TextToSpeech interno de GeminiVoiceAssistant,
+        // le inyectamos un Listener para saber cuándo empieza y cuándo termina de hablar:
+        app.geminiVoiceAssistant.setTtsProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) {
+                // En cuanto el parlante empiece a hablar, apagamos de inmediato el micrófono
+                // Esto elimina interferencias y permite que el visitante escuche fuerte y claro
+                lifecycleScope.launch(Dispatchers.Main) {
+                    speechRecognizer?.stopListening()
+                    binding.lbStatusAsistente?.text = "🔊 Asistente Hablando..."
+                    // 🟣 MORADO: El altavoz del sistema está activo, el micrófono se apaga por seguridad
+                    actualizarIndicadorVisualVoz("ASISTENTE HABLANDO 🔊", "#9C27B0")
+                }
+            }
+
+            override fun onDone(utteranceId: String?) {
+                // En cuanto el altavoz termine de hablar, volvemos a encender el micrófono automáticamente
+                lifecycleScope.launch(Dispatchers.Main) {
+                    delay(500) // Pausa de alivio acústico
+                    actualizarIndicadorVisualVoz("REINICIANDO MICRO...", "#FFEB3B")
+                    encenderMicrofonoAsistente()
+                }
+            }
+
+            override fun onError(utteranceId: String?) {
+                lifecycleScope.launch(Dispatchers.Main) { encenderMicrofonoAsistente() }
+            }
+        })
+    }
     private fun encenderMicrofonoAsistente() {
         if (microfonoHabilitadoPorPaso && viewModel.uiState.value.currentStep != CaptureStep.PROCESANDO_AUTORIZACION) {
             try {
@@ -186,7 +300,6 @@ class IngresoVehicularActivity : AppCompatActivity() {
             }
         }
     }
-
     private fun intentarReinicioSeguroDelMicrofono(delayMillis: Long) {
         if (reintentandoEscucha || !microfonoHabilitadoPorPaso) return
         reintentandoEscucha = true
@@ -203,12 +316,24 @@ class IngresoVehicularActivity : AppCompatActivity() {
             }
         }
     }
-
     fun onTranscripcionDeVozRecibidaPorAsistente(textoDictado: String) {
         if (textoDictado.isNotEmpty()) {
             viewModel.procesarEntradaVozAsistenteGemini(textoDictado)
         }
-        intentarReinicioSeguroDelMicrofono(delayMillis = 1200)
+        //intentarReinicioSeguroDelMicrofono(delayMillis = 1200)
+    }
+    private fun actualizarIndicadorVisualVoz(estadoTexto: String, colorHex: String) {
+        // Garantizar que la mutación corra en el hilo principal de la UI
+        runOnUiThread {
+            binding.lblEstadoHardwareVoz.text = estadoTexto
+
+            // Crear un fondo circular o cuadrado de color dinámico
+            val drawable = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setColor(Color.parseColor(colorHex))
+            }
+            binding.indicadorColorMicro.background = drawable
+        }
     }
 
     // --- RENDERIZACIÓN REACTIVA CONTROLADA (SOLUCIÓN AL COINCIDIR CLICS) ---
@@ -292,7 +417,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
 
                         CaptureStep.CAPTURA_NOMBRE -> {
                             // En pasos de teclado manual, apagamos el micro para liberar el búfer táctil al 100%
-                            controlarEstadoMicrofono(habilitar = false)
+                            controlarEstadoMicrofono(habilitar = true)
                             binding.lblInstruccionSeccion.text = "4. Ingrese Nombre del Conductor:"
                             binding.ScrollViewGridBotones.visibility = View.GONE
                             binding.txtInputManual.visibility = View.VISIBLE
@@ -331,6 +456,8 @@ class IngresoVehicularActivity : AppCompatActivity() {
         microfonoHabilitadoPorPaso = habilitar
         if (!habilitar) {
             speechRecognizer?.stopListening()
+            // ⚪ GRIS: Deshabilitado explícitamente porque estás usando el teclado manual
+            actualizarIndicadorVisualVoz("TECLADO ACTIVO ⌨️", "#9E9E9E")
         } else {
             encenderMicrofonoAsistente()
         }
@@ -355,6 +482,9 @@ class IngresoVehicularActivity : AppCompatActivity() {
             add("--rtsp-tcp") // Force RTSP over TCP transport layer to avoid dropped frames
             add("--no-drop-late-frames")
             add("--no-skip-frames")
+            add("--vout=android_display")   // Utilizar el motor de renderizado estándar de Android
+            add("--android-display-chroma=RV32") // Forzar croma de color estándar de 32 bits compatible con layouts
+            add("--video-wallpaper")        // Deshabilitar el modo exclusivo de pantalla completa de hardware
         }
         libVLC = LibVLC(this, args)
         mediaPlayer = MediaPlayer(libVLC)
@@ -405,11 +535,44 @@ class IngresoVehicularActivity : AppCompatActivity() {
             // Bind the LibVLC media player directly to the XML view texture surface layout
             mediaPlayer?.attachViews(binding.vlcPlacaSurface, null, true, false)
 
+            mediaPlayer?.setEventListener { evento ->
+                when (evento.type) {
+                    MediaPlayer.Event.EncounteredError -> {
+                        Log.e("VlcNetwork", "Error de red asíncrono detectado en el stream RTSP (IP inválida o caída).")
+                        // Regresar al hilo principal para activar los controles en la pantalla
+                        lifecycleScope.launch(Dispatchers.Main) {
+                            binding.txtUrlRtspFix.setText( viewModel.urlCamaraPlacasRtsp )
+                            viewModel.reportarFallaConexionPlacas()
+                        }
+                    }
+                    MediaPlayer.Event.Buffering -> {
+                        Log.d("VlcNetwork", "Buffering del stream: ${evento.buffering}%")
+                    }
+                    MediaPlayer.Event.Playing -> {
+                        Log.d("VlcNetwork", "¡Stream RTSP conectado y reproduciendo con éxito!")
+                    }
+                }
+            }
+
             val media = Media(libVLC, viewModel.urlCamaraPlacasRtsp).apply {
                 setHWDecoderEnabled(true, false) // Enable native hardware acceleration
             }
             mediaPlayer?.media = media
             mediaPlayer?.play()
+
+            // 🚀 SOLUCIÓN 2: Temporizador de pánico por software (Network Timeout)
+            // Si pasan 5 segundos y el reproductor sigue trabado intentando conectar a la IP muerta,
+            // cancelamos la petición y pintamos el menú de configuración de forma automática.
+            lifecycleScope.launch(Dispatchers.Main) {
+                delay(5000) // 5 segundos de tolerancia máxima de conexión
+                if (mediaPlayer?.isPlaying == false && viewModel.vlcStreamActive.value) {
+                    Log.w("VlcNetwork", "Timeout de 5 segundos alcanzado sin respuesta de la cámara IP.")
+                    Toast.makeText(applicationContext, "Timeout de 5 segundos alcanzado sin respuesta de la cámara PLACAS", Toast.LENGTH_LONG).show()
+                    apagarStreamVideoRtspPlacas() // Detener el búfer trabado
+                    binding.txtUrlRtspFix.setText( viewModel.urlCamaraPlacasRtsp )
+                    viewModel.reportarFallaConexionPlacas() // Mostrar los controles en el XML
+                }
+            }
 
             // Start the asynchronous snapshot extraction engine loop for local OCR parsing
             iniciarBucleProcesamientoOcrPlacas()
@@ -500,52 +663,76 @@ class IngresoVehicularActivity : AppCompatActivity() {
 
     // --- QR
     private fun configurarEIniciarCameraXFrontal() {
+        // 1. Obtener el proveedor de la cámara de forma explícita en el hilo principal
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
 
         cameraProviderFuture.addListener({
             try {
+                // Asegurar que la Activity siga viva antes de tocar el hardware
+                if (isFinishing || isDestroyed) return@addListener
+
                 cameraProvider = cameraProviderFuture.get()
 
-                // Enlazar los casos de uso de la cámara al ciclo de vida de la Activity
+                // 2. Desvincular de forma agresiva cualquier caso de uso previo o huérfano
+                cameraProvider?.unbindAll()
+
+                // 3. Invocar la conexión secuencial blindada de texturas
                 conectarCasosDeUsoDeCamaraX()
 
             } catch (e: Exception) {
-                Log.e("CameraXHardware", "Error obteniendo el proveedor de cámara: ${e.message}")
+                Log.e("CameraXHardware", "Fallo crítico al inicializar el proveedor: ${e.message}")
                 viewModel.reportarFallaConexionQr()
             }
         }, ContextCompat.getMainExecutor(this))
     }
+
     private fun conectarCasosDeUsoDeCamaraX() {
         val provider = cameraProvider ?: return
 
-        // 1. Caso de Uso: Previsualización en tiempo real en la pantalla
-        val previewUseCase = Preview.Builder().build().also {
-            it.setSurfaceProvider(binding.cameraXQrPreview.surfaceProvider)
-        }
-
-        // 2. Caso de Uso: Pipeline de análisis asíncrono para decodificación de fotogramas
-        val analysisUseCase = ImageAnalysis.Builder()
-            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST) // No acumular retrasos de frames
+        // 🚀 MEJORA 1: Forzar al Preview a usar una estrategia de escalado compatible con GPU de emuladores y físicos
+        val previewUseCase = Preview.Builder()
+            .setTargetAspectRatio(androidx.camera.core.AspectRatio.RATIO_4_3) // 4:3 es el más compatible universalmente
             .build()
 
-        // Enlazar el búfer de bytes al motor de ML Kit Barcode Scanning
-        analysisUseCase.setAnalyzer(cameraExecutor ?: Executors.newSingleThreadExecutor()) { imageProxy ->
+        // 🚀 MEJORA 2: Configurar el análisis de imagen aislando el hilo con el Executor dedicado
+        val analysisUseCase = ImageAnalysis.Builder()
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .build()
+
+        // Inyectar el analizador QR pasándole el pool de hilos secundario (cameraExecutor)
+        analysisUseCase.setAnalyzer(cameraExecutor ?: java.util.concurrent.Executors.newSingleThreadExecutor()) { imageProxy ->
             procesarFotogramaDeCamaraXConMlKit(imageProxy)
         }
 
-        // 3. Selección estricta de la CÁMARA FRONTAL (Mapeado de tus requerimientos de Satélite 2)
-        val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+        // 4. Seleccionar rigurosamente la cámara FRONTAL
+        val cameraSelector = try {
+            CameraSelector.Builder()
+                .requireLensFacing(CameraSelector.LENS_FACING_FRONT)
+                .build()
+        } catch (e: Exception) {
+            CameraSelector.DEFAULT_FRONT_CAMERA
+        }
 
         try {
-            // Desvincular pases previos para evitar colisiones de hardware
-            provider.unbindAll()
+            // 🚀 MEJORA 3: Bindeamos los casos de uso AL MISMO TIEMPO al ciclo de vida de la Activity
+            // Pasar el previewUseCase AQUÍ es lo que despierta el flujo de datos del lente
+            val camera = provider.bindToLifecycle(
+                this as androidx.lifecycle.LifecycleOwner,
+                cameraSelector,
+                previewUseCase
+                ,analysisUseCase
+            )
 
-            // Ligar los componentes al ciclo de vida controlado por Android Jetpack
-            provider.bindToLifecycle(this, cameraSelector, previewUseCase, analysisUseCase)
-            Log.d("CameraXHardware", "Cámara frontal y analizador QR iniciados exitosamente.")
-
+            binding.cameraXQrPreview.post {
+                try {
+                    previewUseCase.setSurfaceProvider(binding.cameraXQrPreview.surfaceProvider)
+                    Log.d("DiagnosticoCamara", "¡Superficie de CameraX inyectada en caliente exitosamente!")
+                } catch (e: Exception) {
+                    Log.e("DiagnosticoCamara", "Error al inyectar superficie: ${e.message}")
+                }
+            }
         } catch (e: Exception) {
-            Log.e("CameraXHardware", "Error al vincular casos de uso a CameraX: ${e.message}")
+            Log.e("CameraXHardware", "Error fatal al enlazar la cámara frontal: ${e.message}")
             viewModel.reportarFallaConexionQr()
         }
     }
@@ -585,6 +772,131 @@ class IngresoVehicularActivity : AppCompatActivity() {
     }
 
 
+    // --- WHatsapp
+    private fun registrarObservadorWhatsapp() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.whatsappStatus.collect { status ->
+                    when (status) {
+                        is WhatsappAuthStatus.Idle -> {
+                            // Si regresa a Idle, nos aseguramos de limpiar la pantalla
+                            whatsappDialog?.dismiss()
+                            whatsappDialog = null
+                        }
+
+                        is WhatsappAuthStatus.Solicitando -> {
+                            // Si el diálogo no está inflado en la pantalla del guardia, lo creamos
+                            if (whatsappDialog == null) {
+                                mostrarDialogoEstructuralWhatsapp(status)
+                            } else {
+                                // Si ya existe, actualizamos únicamente los widgets en caliente (Evita ANR)
+                                val tvContador = whatsappDialog?.findViewById<TextView>(R.id.tvDialogContador)
+                                tvContador?.text = "segundos transcurridos ${status.segundos} seg"
+                            }
+                        }
+
+                        is WhatsappAuthStatus.Autorizado -> {
+                            actualizarEstadoEstiloDialogo(
+                                titulo = "¡AUTORIZADO!",
+                                colorHex = "#2E7D32", // Verde Material
+                                mostrarBoton = false
+                            )
+                        }
+
+                        is WhatsappAuthStatus.Denegado -> {
+                            actualizarEstadoEstiloDialogo(
+                                titulo = "DENEGADO EL ACCESO",
+                                colorHex = "#C62828", // Rojo Material
+                                mostrarBoton = false
+                            )
+                        }
+
+                        is WhatsappAuthStatus.Timeout -> {
+                            actualizarEstadoEstiloDialogo(
+                                titulo = "TIMEOUT SIN RESPUESTA",
+                                colorHex = "#EF6C00", // Naranja de Advertencia
+                                mostrarBoton = false
+                            )
+                        }
+
+                        is WhatsappAuthStatus.Error -> {
+                            actualizarEstadoEstiloDialogo(
+                                titulo = "ERROR",
+                                mensajePersonalizado = status.msg,
+                                colorHex = "#C62828",
+                                mostrarBoton = true // Permite cerrar el diálogo si la API de Render cae
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Infla la vista XML y acopla el listener de cancelación manual.
+     */
+    private fun mostrarDialogoEstructuralWhatsapp(status: WhatsappAuthStatus.Solicitando) {
+        val inflater = layoutInflater
+        val dialogView = inflater.inflate(R.layout.dialog_whatsapp_auth, null)
+
+        val tvMensaje = dialogView.findViewById<TextView>(R.id.tvDialogMensaje)
+        val btnCancelar = dialogView.findViewById<Button>(R.id.btnDialogCancelar)
+
+        // Formateo de texto enriquecido Bold (Equivalente al tag_config highlight de tu Python)
+        val textoFormateado = android.text.Html.fromHtml(
+            "Solicitando la autorización para el ingreso de <b><font color='#0288D1'>${status.nombre}</font></b> " +
+                    "al domicilio <b><font color='#0288D1'>${status.calle} ${status.numero}</font></b>",
+            android.text.Html.FROM_HTML_MODE_LEGACY
+        )
+        tvMensaje.text = textoFormateado
+
+        // --- AQUÍ SE USA EL MÉTODO DE CANCELACIÓN MANUAL ---
+        btnCancelar.setOnClickListener {
+            // 1. Apaga las corrutinas de red e hilos de consulta de inmediato
+            viewModel.cancelarSolicitudManual()
+            // 2. Destruye la ventana flotante
+            whatsappDialog?.dismiss()
+            whatsappDialog = null
+        }
+
+        whatsappDialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false) // Forzar al guardia a usar el botón físico para control de auditoría
+            .create()
+
+        whatsappDialog?.show()
+    }
+
+    /**
+     * Modifica la UI del diálogo actual para mostrar los estados finales de éxito/falla sin parpadear la pantalla.
+     */
+    private fun actualizarEstadoEstiloDialogo(
+        titulo: String,
+        mensajePersonalizado: String? = null,
+        colorHex: String,
+        mostrarBoton: Boolean
+    ) {
+        whatsappDialog?.let { dialog ->
+            val tvTitulo = dialog.findViewById<TextView>(R.id.tvDialogTitulo)
+            val tvContador = dialog.findViewById<TextView>(R.id.tvDialogContador)
+            val tvMensaje = dialog.findViewById<TextView>(R.id.tvDialogMensaje)
+            val btnCancelar = dialog.findViewById<Button>(R.id.btnDialogCancelar)
+
+            tvTitulo?.text = titulo
+            tvTitulo?.setTextColor(android.graphics.Color.parseColor(colorHex))
+
+            // Ocultamos el segundero en pantallas de desenlace
+            tvContador?.visibility = android.view.View.GONE
+
+            if (mensajePersonalizado != null) {
+                tvMensaje?.text = mensajePersonalizado
+            }
+
+            btnCancelar?.visibility = if (mostrarBoton) android.view.View.VISIBLE else android.view.View.GONE
+        }
+    }
+
     // --- Request PERMISOS
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
@@ -604,6 +916,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
         apagarStreamVideoRtspPlacas()
         mediaPlayer?.release()
         libVLC?.release()
+        cameraProvider?.unbindAll()
         textRecognizer.close()
         cameraExecutor?.shutdown()
         qrScannerClient.close()

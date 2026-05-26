@@ -15,6 +15,9 @@ import com.google.api.services.sheets.v4.model.DeleteDimensionRequest
 import com.google.api.services.sheets.v4.model.DimensionRange
 import com.google.api.services.sheets.v4.model.Request
 import com.google.api.services.sheets.v4.model.ValueRange
+import com.google.api.services.sheets.v4.SheetsScopes
+import com.google.api.services.sheets.v4.model.AddSheetRequest
+import com.google.api.services.sheets.v4.model.SheetProperties
 import com.larangel.rondyaccesos.R
 import com.larangel.rondyaccesos.utils.extraerColor
 import com.larangel.rondyaccesos.utils.extraerMarcaAuto
@@ -65,12 +68,14 @@ class DataRawRondin(
 
     private fun initializeGoogleServices() {
         try {
-            val credentialsgoogleapi = ByteArrayInputStream(mySettings.getString("CREDENTIALS_GOOGLE_API","{}").toByteArray(StandardCharsets.UTF_8))
+            val datafromMemory =mySettings.getString("CREDENTIALS_GOOGLE_API","{}")
+            val credentialsgoogleapi = ByteArrayInputStream(datafromMemory.toByteArray(StandardCharsets.UTF_8))
             //val serviceAccountStream = context.resources.openRawResource(R.raw.json_google_service_account)
             val credential = GoogleCredential.fromStream(credentialsgoogleapi)
-                .createScoped(listOf("https://googleapis.com", "https://googleapis.com"))
-            sheetsService = Sheets.Builder(NetHttpTransport(), GsonFactory.getDefaultInstance(), credential)
-                .setApplicationName("My First Project").build()
+                .createScoped(listOf(SheetsScopes.SPREADSHEETS))
+            val requestInitializer = credential as com.google.api.client.http.HttpRequestInitializer
+            this.sheetsService = Sheets.Builder(NetHttpTransport(), GsonFactory.getDefaultInstance(), requestInitializer)
+                .setApplicationName("RondyAccessos").build()
         } catch (e: Exception) {
             Log.e(TAG, "Error inicializando credenciales de Google: ${e.message}")
         }
@@ -322,6 +327,52 @@ class DataRawRondin(
         } catch (e: Exception) {
             Log.e(TAG, "No se pudo obtener el ID de la hoja $sheetName")
             null
+        }
+    }
+    private fun createWorkSheetNew(spreadsheetId: String,table: SheetTable){
+        val targetSheetName = table.sheetName
+        Log.w(TAG, "La pestaña '${targetSheetName}' no existe. Creando e inicializando estructura...")
+        if (targetSheetName.isBlank()) {
+            Log.e(TAG, "Error: Intento de creación abortado. El nombre de hoja para ${table.name} está vacío.")
+            return
+        }
+
+        try {
+            Log.w(TAG, "Iniciando aprovisionamiento de pestaña remota: '$targetSheetName'")
+
+            // 1. Empaquetar la solicitud estructural BatchUpdate para insertar el Worksheet físico
+            val addSheetRequest = Request().setAddSheet(
+                AddSheetRequest().setProperties(
+                    SheetProperties().setTitle(targetSheetName)
+                )
+            )
+
+            val batchUpdateRequest = BatchUpdateSpreadsheetRequest()
+                .setRequests(listOf(addSheetRequest))
+
+            // Ejecución de la mutación del libro
+            sheetsService.spreadsheets()
+                .batchUpdate(spreadsheetId, batchUpdateRequest)
+                .execute()
+
+            // 2. Preparar el lote de inicialización de datos para la fila 1 (Cabeceras)
+            val headersList = table.headers
+
+            // Google Sheets API espera un formato List<List<Any>> para representar filas y columnas
+            val valueRange = ValueRange().setValues(listOf(headersList as List<Any>))
+
+            // Escribir en la celda inicial A1 de la pestaña recién creada
+            sheetsService.spreadsheets().values()
+                .update(spreadsheetId, "$targetSheetName!A1", valueRange)
+                .setValueInputOption("RAW")
+                .execute()
+
+            Log.d(TAG, "Pestaña '$targetSheetName' creada e inicializada con ${headersList.size} columnas de forma exitosa.")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Fallo crítico en el despliegue automático de la tabla remota: $targetSheetName", e)
+            // Lanzamos la excepción para interrumpir el flujo del SmartCache y evitar almacenar estados vacíos o corruptos
+            throw e
         }
     }
 
@@ -1331,6 +1382,107 @@ class DataRawRondin(
         return newCount
     }
 
+    //BITACORA_ACCESOS
+    fun getBitacoraAccesos(forceLoad: Boolean = false, createIfNotExist: Boolean = false): List<List<Any>> = runBlocking {
+        // Usamos el SmartCache genérico con el Enum correspondiente
+        // FechaCreado, FechaIngreso, Placa, Calle, Numero, Tipo, Conductor, Desc, Foto1, Foto2, qr_data, fechaSalida,status
+        getSmartCache(SheetTable.BITACORA_ACCESOS,forceLoad) {
+            val allRows = mutableListOf<List<Any>>()
+            val spreadsheetId = mySettings.getString("REGISTRO_CARROS_SPREADSHEET_ID", "")
+            if (spreadsheetId.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
+
+            // Buscamos el nombre de la hoja en settings o usamos el default
+            val nameWS = SheetTable.BITACORA_ACCESOS.sheetName
+            val idsheet = getSheetIdByName(spreadsheetId,nameWS)
+            if (idsheet == null && createIfNotExist)
+                createWorkSheetNew(spreadsheetId,SheetTable.BITACORA_ACCESOS)
+
+            // Consultamos el rango A:E (o el que tengas configurado)
+            val response = sheetsService.spreadsheets().values()
+                .get(spreadsheetId, "$nameWS!${SheetTable.BITACORA_ACCESOS.range}")
+                .execute()
+
+            val rows = response.getValues().drop(1) ?: emptyList()
+            allRows.addAll(rows)
+
+            // Retornamos la lista para que SmartCache la guarde en RAM y Disco
+            allRows
+        }
+    }
+    fun addBitacoraAccesos(acceso: AccesoBitacora): Boolean{
+        val table = SheetTable.BITACORA_ACCESOS
+        val state = tableStates[table] ?: return false
+        // 1. Load
+        if (state.cache == null) { runBlocking { getBitacoraAccesos()} }
+
+        val row = acceso.toSheetRow()
+
+        // 2. Actualizar RAM (Optimistic UI: el usuario ve el cambio al instante)
+        val currentCache = state.cache?.toMutableList() ?: mutableListOf()
+        currentCache.add(row)
+        state.cache = currentCache
+
+        // 3. Persistir el cambio visual en el caché de disco (MySettings)
+        mySettings.saveList("${table.cacheKey}_CACHE", currentCache as List<List<String>>)
+        mySettings.saveLong(table.timestampKey, System.currentTimeMillis())
+
+        //4. Sincronización con Google Sheets.
+        sync(table, Operation.APPEND, data = row)
+
+        return true
+    }
+
+    //Whatsapp Telefonos
+    fun getWhatsappTelefonos(forceLoad: Boolean = false, createIfNotExist: Boolean = false): List<List<Any>> = runBlocking {
+        // Usamos el Enum de TELEFONOS_WHATSAPP y el SmartCache genérico
+        getSmartCache(SheetTable.TELEFONOS_WHATSAPP,forceLoad) {
+            val sheetName = SheetTable.TELEFONOS_WHATSAPP.sheetName
+            val range = SheetTable.TELEFONOS_WHATSAPP.range
+            val allRows = mutableListOf<List<Any>>()
+
+            // Obtenemos la lista de IDs de Spreadsheets desde MySettings
+            val spreadsheetIds = mySettings.getSimpleList("WHATSAPP_SPREADSHEET_ID") ?: emptyList<String>()
+            if (spreadsheetIds.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
+
+            for (id in spreadsheetIds) {
+                val idsheet = getSheetIdByName(id,sheetName)
+                if (idsheet == null && createIfNotExist)
+                    createWorkSheetNew(id,SheetTable.TELEFONOS_WHATSAPP)
+
+                // Consultamos el rango A:N (desde Marca temporal hasta Procesado por ROBOT)
+                val response = sheetsService.spreadsheets().values()
+                    .get(id, "${sheetName}!${range}")
+                    .execute()
+
+                // Omitimos la primera fila (encabezados) de cada hoja
+                val rows = response.getValues()?.drop(1) ?: emptyList()
+                allRows.addAll(rows)
+
+            }
+
+            // Retornamos la lista consolidada al SmartCache
+            allRows
+        }
+    }
+    fun getWhatsappTelefonosDomicilio(calle: String, numero: String): List<List<Any>>{
+        val _calle=calle.filter { it.isLetterOrDigit() }.uppercase()
+        val _numero=numero.filter { it.isLetterOrDigit() }.uppercase()
+        val rows = getWhatsappTelefonos()
+        val result = mutableListOf<List<Any>>()
+        run loop@{
+            rows.forEach { row ->
+                val _rcalle = row[0].toString().uppercase()
+                val _rnumer = row[1].toString().uppercase()
+                if (_rcalle == _calle && _rnumer == _numero) {
+                    //Concidencia exacta
+                    result.clear()
+                    result.add(row)
+                    return@loop
+                }
+            }
+        }
+        return result as List<List<Any>>
+    }
 
     // --- PARSEADORES DE FECHA TOLERANTES (Tu lógica de la Parte 1) ---
     fun parseLenientDateTime(dateTimeString: String): LocalDateTime {

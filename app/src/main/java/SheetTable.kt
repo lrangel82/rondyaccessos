@@ -1,34 +1,40 @@
 package com.larangel.rondyaccesos.models
 
 import com.larangel.rondyaccesos.models.MySettings
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlinx.serialization.Serializable
 
 enum class SheetTable(
     var sheetName: String,
     val cacheKey: String,
-    val range: String = "A:Z"
+    val range: String = "A:Z",
+    val headers: List<String>
 ) {
-    PARKING_SLOTS("ParkingSlots", "parkingSlots", "A:C"), //Latitud, Longitud, ParkingKeySlot
-    AUTOS_EVENTOS("AutosEventos", "autosEventos", "A:E"), // placa, date, time, localPhotoPath, ParkingSlotKey
-    INCIDENCIAS("IncidenciaEventos", "incidenciaEventos", "A:G"), // calle, numero, date, time, Tipo, localPhotoPath, descripcion
-    INCIDENCIAS_CONFIG("IncidenciaConfig", "incidenciaConfig", "A:D"),// key, textoButton, maxWarning, descLegal
-    POR_REVISAR("PorRevisar", "porRevisar", "A:G"),
-    MULTAS("MultasGeneradas", "MultaGenerada", "A:E"), // Fecha, Calle,	Numero,	Placa, PerkingSlot - (Fecha)
-    DOMICILIO_WARNINGS("DomicilioWarnings", "DomicilioWarnings", "A:D"),
-    VEHICULOS("AutosRegistrados", "VEHICLE", "A:C"),
-    TAGS("AutosRegistrados", "TAGS", "A:H"),
-    PERMISOS("", "PERMISOS", "A:N"),
-    DIRECCIONES("Direcciones", "directions", "A:D"),  // calle, numero, latitud, longitud
-    AUTOS_REGISTRADOS("AutosRegistrados", "autosRegistrados", "A:I"), //placa,calle,numero,marca,modelo,color,tag
-    RESIDENTES_UNIDAD("ResidentesUnidad", "residentesUnidad", "A:Q"),
-    ALARMAS_RONDIN("AlarmasRondin","alarmasRondin","A:B"), //userid,clave,calle,numero,tipo,nombre,telefono,email,celular,notas,ciudad,estado,fecha_updated_condovive,fecha_updated_app,es_nuevo,es_actualizado,es_eliminado
+    PARKING_SLOTS("ParkingSlots", "parkingSlots", "A:C", listOf("Latitud", "Longitud", "ParkingKeySlot")), //
+    AUTOS_EVENTOS("AutosEventos", "autosEventos", "A:E", listOf("placa", "date", "time", "localPhotoPath", "ParkingSlotKey")), //
+    INCIDENCIAS("IncidenciaEventos", "incidenciaEventos", "A:G", listOf("calle", "numero", "date", "time", "Tipo", "localPhotoPath", "descripcion")), //
+    INCIDENCIAS_CONFIG("IncidenciaConfig", "incidenciaConfig", "A:D", listOf("key", "textoButton", "maxWarning", "descLegal")),//
+    POR_REVISAR("PorRevisar", "porRevisar", "A:G", listOf("calle","numero","fecha","slotkey","verificado","lat","lon")),
+    MULTAS("MultasGeneradas", "MultaGenerada", "A:E", listOf("Fecha", "Calle",	"Numero",	"Placa", "PerkingSlot - (Fecha)")), //
+    DOMICILIO_WARNINGS("DomicilioWarnings", "DomicilioWarnings", "A:D", listOf("Calle","Numero","ContadorWarnings","Tipo")),
+    VEHICULOS("AutosRegistrados", "VEHICLE", "A:C", listOf("Placas","Calle","Numero","Marca","Modelo","Color","Tag","Tag2","userid")),
+    TAGS("AutosRegistrados", "TAGS", "A:H", listOf("Placas","Calle","Numero","Marca","Modelo","Color","Tag","Tag2","userid")),
+    PERMISOS("", "PERMISOS", "A:N", listOf("Marca temporal","Calle","Numero de casa","Nombre de quien solicita el permiso",	"Correo electrónico", "Permiso para:","Tipo Permiso (nota: si es renta o venta del inmueble indique en la descripcion el telefono a comunicarse)",	"Fecha Inicio del permiso",	"Fecha Fin del permiso","Descripción y/o trabajos a realizar	Nombre de la(s) persona(s) a Ingresar",	"Aprobado","Motivo Denegado","Procesado por ROBOT")),
+    DIRECCIONES("Direcciones", "directions", "A:D", listOf("calle", "numero", "latitud", "longitud","ext")),  //
+    AUTOS_REGISTRADOS("AutosRegistrados", "autosRegistrados", "A:I", listOf("Placas","Calle","Numero","Marca","Modelo","Color","Tag","Tag2","userid")), //placa,calle,numero,marca,modelo,color,tag
+    RESIDENTES_UNIDAD("ResidentesUnidad", "residentesUnidad", "A:Q", listOf("userid","clave","calle","numero","tipo","nombre","telefono","email","celular","notas","ciudad","estado","fecha_updated_condovive","fecha_updated_app","es_nuevo","es_actualizado","es_eliminado")),
+    ALARMAS_RONDIN("AlarmasRondin","alarmasRondin","A:B", listOf("Hora","Nombre")),
 
 
     // --- NUEVAS TABLAS PARA EL FLUJO RONDY ACCESOS ---
-    BITACORA_ACCESOS("BitacoraAccesos", "bitacoraAccesos", "A:K"),     // Fecha, Hora, Placa, Calle, Numero, Tipo, Conductor, Desc, Foto1, Foto2, Status
-    EXCEPCIONES("ExcepcionesDomicilio", "excepcionesDom", "A:F"),     // Calle, Numero, TipoExcepcion, ValidoDesde, ValidoHasta, Notas
-    DOMICILIOS_MOROSOS("DomiciliosMorosos", "morosos", "A:C"),        // Calle, Numero, EstatusDeuda
-    TERRAZA_RESERVAS("TerrazaReservas", "terrazaReservas", "A:E"),    // Coto/Terraza, Fecha, Hora, Evento, QrCode
-    PLACAS_PROHIBIDAS("PlacasProhibidas", "placasProhibidas", "A:D"); // Placa, RazonBloqueo, FechaCreado, CreadoPor
+    BITACORA_ACCESOS("ingreso", "BitacoraAccesos", "A:M",listOf("FechaCreado", "FechaIngreso", "Placa", "Calle", "Numero", "Tipo", "Conductor", "Desc", "Foto1", "Foto2", "qr_data", "fechaSalida","status")),     //
+    EXCEPCIONES("Excepciones", "ExcepcionesDom", "A:L", listOf("id","calle","numero","conductor","placas","descripcion","status_vs_descripcion","fechainicio","fechafin","fecha_creado","status","coto")),     // Calle, Numero, TipoExcepcion, ValidoDesde, ValidoHasta, Notas
+    DOMICILIOS_MOROSOS("saldos", "DomiciliosMorosos", "A:C", listOf("ID","Calle","Numero","Deuda","Fecha")),
+    TERRAZA_RESERVAS("CasaClub", "terrazaReservas", "A:E", listOf("fecha","contador_ingresos","direccion_responsable","telefono_responsable","qr_data")),    // Coto/Terraza, Fecha, Hora, Evento, QrCode
+    PLACAS_PROHIBIDAS("PlacasProhibidas", "placasProhibidas", "A:E", listOf("ID","Fecha_Creado","Placa","Razon_Bloqueo","Coto")),
+    TELEFONOS_WHATSAPP("telefonos", "WhatsappTelefonos", "A:E", listOf("calle","numero","telefono","coto","nombre"));
 
     val saveKey get() = "CACHE_forSave_$cacheKey"
     val updateKey get() = "CACHE_forUpdate_$cacheKey"
@@ -78,3 +84,4 @@ enum class CaptureStep {
     CAPTURA_PLACA,
     PROCESANDO_AUTORIZACION
 }
+
