@@ -2,6 +2,7 @@ package com.larangel.rondyaccesos.vehicular
 
 import com.larangel.rondyaccesos.models.CaptureStep
 import com.larangel.rondyaccesos.models.network.WhatsappAuthStatus
+import kotlinx.serialization.Serializable
 
 data class IngresoVehicularUiState(
     val lblTopMensaje: String = "Esperando vehículo...",
@@ -23,6 +24,21 @@ data class IngresoVehicularUiState(
     val asistenteActivo: Boolean = false,
     val lectorQrActivo: Boolean = false,
     val qrData: String = "",
-    val listaDomiciliosFiltrados: List<List<Any>> = emptyList()
+    val listaDomiciliosFiltrados: List<List<Any>> = emptyList(),
+    val mostrarPanelResultadoDerecho: Boolean = false,
+    val resultadoEsAutorizado: Boolean = false,
+    val resultadoMotivoPrincipal: String = "",
+    val resultadoMotivoDetalle: String = ""
 )
 
+@Serializable
+data class ExcepcionRondin(
+    var id: String,
+    val calle: String,
+    val numero: String,
+    val placas: String,
+    val conductor: String,
+    var status: String,
+    var descripcion: String,
+    var resultadoEsAutorizado: Boolean = false,
+)

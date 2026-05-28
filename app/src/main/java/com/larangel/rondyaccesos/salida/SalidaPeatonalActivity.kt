@@ -60,7 +60,7 @@ class SalidaPeatonalActivity : AppCompatActivity() {
                         👤 VISITANTE: ${p.conductor}
                         🏡 DOMICILIO VISITADO: ${p.calle} #${p.numero}
                         🕒 MOTIVO: ${p.descripcion}
-                        ⏳ HORA INGRESO: ${p.hora}
+                        ⏳ FECHA INGRESO: ${p.fechaIngreso}
                     """.trimIndent()
                 } else {
                     binding.cardPeatonEncontrado.visibility = View.GONE

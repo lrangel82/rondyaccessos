@@ -66,7 +66,7 @@ class SalidaVehicularActivity : AppCompatActivity() {
                         🚗 PLACA IDENTIFICADA: ${v.placa}
                         🏠 PROCEDENCIA: ${v.calle} #${v.numero}
                         👤 CONDUCTOR: ${v.conductor}
-                        🕒 ENTRÓ EL DÍA DE HOY A LAS: ${v.hora}
+                        🕒 ENTRÓ EL DÍA DE HOY A LAS: ${v.fechaIngreso}
                     """.trimIndent()
                 } else {
                     binding.cardVehiculoEncontrado.visibility = View.GONE

@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:layout_marginTop="?attr/actionBarSize"
-    tools:context=".vehicular.IngresoVehicularActivity"
     android:background="#121212"
-    android:padding="8dp">
+    android:padding="8dp"
+    tools:context=".vehicular.IngresoVehicularActivity"
+    tools:visibility="visible">
 
     <!-- Banner superior de Estado y Cronómetro de Inactividad -->
     <RelativeLayout
@@ -16,6 +16,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         app:layout_constraintTop_toTopOf="parent">
+
         <TextView
             android:id="@+id/lblTopMensaje"
             android:layout_width="wrap_content"
@@ -29,14 +30,14 @@
             android:id="@+id/panelEstadoMicofono"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_toStartOf="@+id/btnMenuConfiguracion"
             android:layout_marginEnd="16dp"
+            android:layout_toStartOf="@+id/btnMenuConfiguracion"
             android:background="#212121"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
             android:paddingStart="8dp"
-            android:paddingEnd="8dp"
             android:paddingTop="4dp"
+            android:paddingEnd="8dp"
             android:paddingBottom="4dp">
 
             <!-- Círculo indicador de color -->
@@ -44,8 +45,8 @@
                 android:id="@+id/indicadorColorMicro"
                 android:layout_width="12dp"
                 android:layout_height="12dp"
-                android:background="@android:color/darker_gray"
-                android:layout_marginEnd="6dp"/>
+                android:layout_marginEnd="6dp"
+                android:background="@android:color/darker_gray" />
 
             <TextView
                 android:id="@+id/lblEstadoHardwareVoz"
@@ -53,20 +54,21 @@
                 android:layout_height="wrap_content"
                 android:text="INACTIVO"
                 android:textColor="#FFFFFF"
-                android:textStyle="bold"
-                android:textSize="12sp"/>
+                android:textSize="12sp"
+                android:textStyle="bold" />
         </LinearLayout>
 
         <Button
             android:id="@+id/btnMenuConfiguracion"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="wrap_content"
             android:layout_height="35dp"
-            android:layout_toStartOf="@+id/lblTimerInactividad"
             android:layout_marginEnd="16dp"
+            android:layout_toStartOf="@+id/lblTimerInactividad"
             android:text="⚙️"
-            android:textSize="11sp"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-            android:textColor="#FFFFFF"/>
+            android:textColor="#FFFFFF"
+            android:textSize="11sp" />
+
         <TextView
             android:id="@+id/lblTimerInactividad"
             android:layout_width="wrap_content"
@@ -82,14 +84,14 @@
         android:id="@+id/columnaCamaras"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:orientation="vertical"
-        android:weightSum="2"
         android:layout_marginTop="8dp"
         android:layout_marginEnd="8dp"
-        app:layout_constraintTop_toBottomOf="@id/headerTop"
+        android:orientation="vertical"
+        android:weightSum="2"
         app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/guidelineCentro"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toStartOf="@id/guidelineCentro">
+        app:layout_constraintTop_toBottomOf="@id/headerTop">
 
         <!-- 1. Contenedor de Cámara de Placas (RTSP) -->
         <RelativeLayout
@@ -210,37 +212,37 @@
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:orientation="vertical"
-        android:layout_marginTop="8dp"
         android:layout_marginStart="8dp"
-        android:padding="12dp"
+        android:layout_marginTop="8dp"
         android:background="#1E1E1E"
-        app:layout_constraintTop_toBottomOf="@id/headerTop"
+        android:orientation="vertical"
+        android:padding="12dp"
         app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/guidelineCentro"
-        app:layout_constraintEnd_toEndOf="parent">
+        app:layout_constraintTop_toBottomOf="@id/headerTop">
 
         <!-- Instrucción actual en Letras Grandes -->
         <TextView
             android:id="@+id/lblInstruccionSeccion"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
             android:text="1. Seleccione el Motivo de Ingreso:"
             android:textColor="#FFFFFF"
             android:textSize="22sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="12dp"/>
+            android:textStyle="bold" />
 
         <!-- Subtítulos de lo que dice/escucha Gemini -->
         <TextView
             android:id="@+id/lblSubtitulosAsistente"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
             android:text="🤖 Escuchando..."
             android:textColor="#FFEB3B"
             android:textSize="14sp"
-            android:textStyle="italic"
-            android:layout_marginBottom="12dp"/>
+            android:textStyle="italic" />
 
         <!-- CONTENEDOR DINÁMICO: Grid de Botones Inyectados por Código -->
         <ScrollView
@@ -278,21 +280,23 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:weightSum="2">
+
             <Button
                 android:id="@+id/btnReiniciarRegistro"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
                 android:layout_weight="1"
-                android:text="Reiniciar / Error 🔄"
                 android:backgroundTint="#424242"
-                android:layout_marginEnd="6dp"/>
+                android:text="Reiniciar / Error 🔄" />
+
             <Button
                 android:id="@+id/btnSiguientePasoManual"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
                 android:layout_weight="1"
-                android:text="Siguiente ➡️"
-                android:layout_marginStart="6dp"/>
+                android:text="Siguiente ➡️" />
 
         </LinearLayout>
 
@@ -305,6 +309,46 @@
             android:textAppearance="@style/TextAppearance.AppCompat.Small"
             android:textColor="#03A9F4"
             android:textStyle="italic" />
+
     </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/layoutVisualEstatusDerecho"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="24dp"
+        android:visibility="visible"
+        tools:layout_editor_absoluteX="314dp"
+        tools:layout_editor_absoluteY="269dp"
+        tools:visibility="visible">
+
+        <LinearLayout
+            android:id="@+id/panelColorContenedor"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="?attr/popupMenuBackground"
+            android:gravity="center"
+            android:orientation="vertical"> <!-- Managed dynamically in code -->
+
+            <TextView
+                android:id="@+id/tvEstatusGrande"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="AUTORIZADO"
+                android:textSize="56sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvEstatusDetallePeque"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="Razón: Ingreso Estándar"
+                android:textSize="22sp" />
+        </LinearLayout>
+    </FrameLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

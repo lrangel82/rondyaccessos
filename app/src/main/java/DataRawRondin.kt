@@ -1431,6 +1431,72 @@ class DataRawRondin(
 
         return true
     }
+    fun getBitacoraUltimoAcceso(placa: String): List<Any>{
+        val rows = getBitacoraAccesos()
+        var result = mutableListOf<Any>()
+        if (rows.isNotEmpty()) {
+            run loop@{
+                rows.forEach { row ->
+                    if (row.size > 4) {
+                        val _placa = row[2].toString().uppercase()
+                        if (_placa == placa.uppercase()) {
+                            //Concidencia exacta
+                            result = row as MutableList<Any>
+                            return@loop
+                        }
+                    }
+                }
+            }
+        }
+        return result as List<Any>
+    }
+    fun actulizarSalidaAccesos(placaTarget:String, fechaSalidaNueva: String): Boolean {
+        if (placaTarget.isBlank()) return false
+
+        val table = SheetTable.BITACORA_ACCESOS
+        val state = tableStates[table] ?: return false
+
+        try {
+            // 1. Aseguramos que la RAM tenga datos (Carga desde RAM -> Disco -> Red)
+            if (state.cache == null) runBlocking { getBitacoraAccesos() }
+
+            val currentCache = state.cache?.toMutableList() ?: mutableListOf()
+            var indexFind = -1
+
+            // 2. Búsqueda por ID
+            var rowData: MutableList<Any> = mutableListOf()
+            currentCache.forEachIndexed { index, bitacora ->
+                if (bitacora.size >= 4 &&
+                    bitacora[2].toString() == placaTarget &&
+                    bitacora[11].toString().isEmpty()
+                ) {
+                    indexFind = index
+                    rowData = bitacora.toMutableList()
+                    return@forEachIndexed
+                }
+            }
+
+            //Vencer
+            if (indexFind >= 0) {
+                rowData[11] = fechaSalidaNueva
+                rowData[12] = "salida CORREGIDA POR APP"
+                currentCache[indexFind] = rowData
+                state.cache = currentCache
+
+                // Persistir en disco para acceso offline inmediato
+                mySettings.saveList("${table.cacheKey}_CACHE", currentCache as List<List<String>>)
+                mySettings.saveLong(table.timestampKey, System.currentTimeMillis())
+
+                // Sincronizar Update (index + 2 por el encabezado de Google Sheets)
+                sync(table, Operation.UPDATE, data = rowData as List<String>, index = indexFind + 2)
+            }
+        }catch (e: Exception) {
+            Log.e("DataRawRondin", "Excepcion critica durante el cierre automatico de reentradas por placa.", e)
+            return false
+        }
+        return true
+
+    }
 
     //Whatsapp Telefonos
     fun getWhatsappTelefonos(forceLoad: Boolean = false, createIfNotExist: Boolean = false): List<List<Any>> = runBlocking {
@@ -1482,6 +1548,148 @@ class DataRawRondin(
             }
         }
         return result as List<List<Any>>
+    }
+
+    //Morosos
+    fun getMorosos(forceLoad: Boolean = false, createIfNotExist: Boolean = false): List<List<Any>> = runBlocking {
+        // Usamos el Enum de DOMICILIOS_MOROSOS y el SmartCache genérico
+        getSmartCache(SheetTable.DOMICILIOS_MOROSOS,forceLoad) {
+            val sheetName = SheetTable.DOMICILIOS_MOROSOS.sheetName
+            val range = SheetTable.DOMICILIOS_MOROSOS.range
+            val allRows = mutableListOf<List<Any>>()
+
+            // Obtenemos la lista de IDs de Spreadsheets desde MySettings
+            val spreadsheetIds = mySettings.getSimpleList("SALDOS_SPREADSHEET_ID") ?: emptyList<String>()
+            if (spreadsheetIds.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
+
+            for (id in spreadsheetIds) {
+                val idsheet = getSheetIdByName(id,sheetName)
+                if (idsheet == null && createIfNotExist)
+                    createWorkSheetNew(id,SheetTable.DOMICILIOS_MOROSOS)
+
+                // Consultamos el rango A:N (desde Marca temporal hasta Procesado por ROBOT)
+                val response = sheetsService.spreadsheets().values()
+                    .get(id, "${sheetName}!${range}")
+                    .execute()
+
+                // Omitimos la primera fila (encabezados) de cada hoja
+                val rows = response.getValues()?.drop(1) ?: emptyList()
+                allRows.addAll(rows)
+
+            }
+
+            // Retornamos la lista consolidada al SmartCache
+            allRows
+        }
+    }
+    fun esDomicilioMoroso(calle: String, numero: String): Boolean{
+        val _calle=calle.filter { it.isLetterOrDigit() }.uppercase()
+        val _numero=numero.filter { it.isLetterOrDigit() }.uppercase()
+        val limite_moroso = mySettings.getString("LIMITE_MOROSO","0.0").replace("$", "").replace(" ", "").replace(",", "").toFloatOrNull() ?: 0.0f
+        val rows = getMorosos()
+        val result = mutableListOf<List<Any>>()
+        rows.forEach { row ->
+                val _rcalle = row[1].toString().uppercase()
+                val _rnumer = row[2].toString().uppercase()
+                val _deuda = row[3].toString().replace("$", "").replace(" ", "").replace(",", "").toFloatOrNull() ?: 0.0f
+                if (_rcalle == _calle && _rnumer == _numero && _deuda > limite_moroso) {
+                    //Concidencia exacta y es moroso
+                    result.clear()
+                    result.add(row)
+                    return true
+                }
+            }
+        return false
+    }
+
+    //Excepciones
+    fun getExcepciones(forceLoad: Boolean = false, createIfNotExist: Boolean = false): List<List<Any>> = runBlocking {
+        // Usamos el Enum de EXCEPCIONES y el SmartCache genérico
+        getSmartCache(SheetTable.EXCEPCIONES,forceLoad) {
+            val sheetName = SheetTable.EXCEPCIONES.sheetName
+            val range = SheetTable.EXCEPCIONES.range
+            val allRows = mutableListOf<List<Any>>()
+
+            // Obtenemos la lista de IDs de Spreadsheets desde MySettings
+            val spreadsheetIds = mySettings.getString("REGISTRO_CARROS_SPREADSHEET_ID","") //?: emptyList<String>()
+            if (spreadsheetIds.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
+
+            //for (id in spreadsheetIds) {
+                val idsheet = getSheetIdByName(spreadsheetIds,sheetName)
+                if (idsheet == null && createIfNotExist)
+                    createWorkSheetNew(spreadsheetIds,SheetTable.EXCEPCIONES)
+
+                // Consultamos el rango A:N (desde Marca temporal hasta Procesado por ROBOT)
+                val response = sheetsService.spreadsheets().values()
+                    .get(spreadsheetIds, "${sheetName}!${range}")
+                    .execute()
+
+                // Omitimos la primera fila (encabezados) de cada hoja
+                val rows = response.getValues()?.drop(1) ?: emptyList()
+                allRows.addAll(rows)
+
+            //}
+
+            // Retornamos la lista consolidada al SmartCache
+            allRows
+        }
+    }
+    fun getExcepcionesDomicilio(calle: String, numero: String): List<List<Any>>{
+        val _calle=calle.filter { it.isLetterOrDigit() }.uppercase()
+        val _numero=numero.filter { it.isLetterOrDigit() }.uppercase()
+        val rows = getExcepciones()
+        val result = mutableListOf<List<Any>>()
+        run loop@{
+            rows.forEach { row ->
+                val _rcalle = row[1].toString().uppercase()
+                val _rnumer = row[2].toString().uppercase()
+                if (_rcalle == _calle && _rnumer == _numero) {
+                    //Concidencia exacta
+                    result.clear()
+                    result.add(row)
+                    return@loop
+                }
+            }
+        }
+        return result as List<List<Any>>
+    }
+    fun vencerExcepcion(id:String){
+        val table = SheetTable.EXCEPCIONES
+        val state = tableStates[table] ?: return
+
+        // 1. Aseguramos que la RAM tenga datos (Carga desde RAM -> Disco -> Red)
+        if (state.cache == null) runBlocking { getExcepciones() }
+
+        val currentCache = state.cache?.toMutableList() ?: mutableListOf()
+        var indexFind = -1
+
+        // 2. Búsqueda por ID
+        var rowData: MutableList<Any> = mutableListOf()
+        currentCache.forEachIndexed { index, excep ->
+            if (excep.size >= 4 &&
+                excep[0].toString() == id) {
+                indexFind = index
+                rowData=excep.toMutableList()
+                return@forEachIndexed
+            }
+        }
+
+        //Vencer
+        if (indexFind >= 0) {
+            rowData[7] = LocalDate.now().minusDays(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+            rowData[8] = LocalDate.now().minusDays(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+            currentCache[indexFind] = rowData
+            state.cache = currentCache
+
+            // Persistir en disco para acceso offline inmediato
+            mySettings.saveList("${table.cacheKey}_CACHE", currentCache as List<List<String>>)
+            mySettings.saveLong(table.timestampKey, System.currentTimeMillis())
+
+            // Sincronizar Update (index + 2 por el encabezado de Google Sheets)
+            sync(table, Operation.UPDATE, data = rowData as List<String>, index = indexFind + 2)
+        }
+
+        return
     }
 
     // --- PARSEADORES DE FECHA TOLERANTES (Tu lógica de la Parte 1) ---

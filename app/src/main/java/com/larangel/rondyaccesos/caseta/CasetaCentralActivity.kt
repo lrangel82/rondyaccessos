@@ -92,7 +92,7 @@ class CasetaCentralActivity : AppCompatActivity() {
         } else {
             subBinding.root.setBackgroundColor(Color.parseColor("#212121"))
             nodo.ultimoRegistroRecibido?.let {
-                subBinding.txtUltimaPlaca.text = "Último vehículo: ${it.placa} -> ${it.statusStr}"
+                subBinding.txtUltimaPlaca.text = "Último vehículo: ${it.placa} -> ${it.status}"
                 subBinding.txtUltimaPlaca.setTextColor(Color.LTGRAY)
             }
         }

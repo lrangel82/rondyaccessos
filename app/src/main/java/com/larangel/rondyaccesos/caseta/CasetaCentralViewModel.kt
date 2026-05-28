@@ -3,7 +3,7 @@ package com.larangel.rondyaccesos.models.com.larangel.rondyaccesos.caseta
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.larangel.rondyaccesos.models.RegistroAcceso
+import com.larangel.rondyaccesos.models.AccesoBitacora
 import com.larangel.rondyaccesos.models.SateliteMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,7 +34,7 @@ class CasetaCentralViewModel(application: Application) : AndroidViewModel(applic
     }
 
     // Esta función es llamada de forma asíncrona cuando RondySocketService detecta un JSON entrante
-    fun procesarPaqueteEntranteDeSatelite(ip: String, role: SateliteMode, registro: RegistroAcceso) {
+    fun procesarPaqueteEntranteDeSatelite(ip: String, role: SateliteMode, registro: AccesoBitacora) {
         viewModelScope.launch {
             _uiState.update { current ->
                 val listaModificada = current.nodosSatelites.map { nodo ->
@@ -44,7 +44,7 @@ class CasetaCentralViewModel(application: Application) : AndroidViewModel(applic
                             ipAddress = ip,
                             estaEnLinea = true,
                             ultimoRegistroRecibido = registro,
-                            requiereAsistencia = registro.statusStr == "acceso denegado" // Alerta visual si se le deniega el paso
+                            requiereAsistencia = registro.status == "acceso denegado" // Alerta visual si se le deniega el paso
                         )
                     } else {
                         nodo

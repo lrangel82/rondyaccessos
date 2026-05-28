@@ -31,7 +31,7 @@ enum class SheetTable(
     // --- NUEVAS TABLAS PARA EL FLUJO RONDY ACCESOS ---
     BITACORA_ACCESOS("ingreso", "BitacoraAccesos", "A:M",listOf("FechaCreado", "FechaIngreso", "Placa", "Calle", "Numero", "Tipo", "Conductor", "Desc", "Foto1", "Foto2", "qr_data", "fechaSalida","status")),     //
     EXCEPCIONES("Excepciones", "ExcepcionesDom", "A:L", listOf("id","calle","numero","conductor","placas","descripcion","status_vs_descripcion","fechainicio","fechafin","fecha_creado","status","coto")),     // Calle, Numero, TipoExcepcion, ValidoDesde, ValidoHasta, Notas
-    DOMICILIOS_MOROSOS("saldos", "DomiciliosMorosos", "A:C", listOf("ID","Calle","Numero","Deuda","Fecha")),
+    DOMICILIOS_MOROSOS("saldos", "DomiciliosMorosos", "A:E", listOf("ID","Calle","Numero","Deuda","Fecha")),
     TERRAZA_RESERVAS("CasaClub", "terrazaReservas", "A:E", listOf("fecha","contador_ingresos","direccion_responsable","telefono_responsable","qr_data")),    // Coto/Terraza, Fecha, Hora, Evento, QrCode
     PLACAS_PROHIBIDAS("PlacasProhibidas", "placasProhibidas", "A:E", listOf("ID","Fecha_Creado","Placa","Razon_Bloqueo","Coto")),
     TELEFONOS_WHATSAPP("telefonos", "WhatsappTelefonos", "A:E", listOf("calle","numero","telefono","coto","nombre"));
@@ -54,7 +54,6 @@ enum class SheetTable(
                 RESIDENTES_UNIDAD to "WS_RESIDENTES_UNIDAD",
                 ALARMAS_RONDIN to "WS_ALARMAS_RONDIN",
                 // Mapeos del Condominio Rondy Accesos
-                BITACORA_ACCESOS to "WS_BITACORA_ACCESOS",
                 EXCEPCIONES to "WS_EXCEPCIONES",
                 DOMICILIOS_MOROSOS to "WS_DOMICILIOS_MOROSOS",
                 TERRAZA_RESERVAS to "WS_TERRAZA_RESERVAS",
@@ -80,6 +79,7 @@ enum class CaptureStep {
     SELECCION_MOTIVO,
     SELECCION_CALLE,
     SELECCION_NUMERO,
+    CONFRMAR_DOMICILIO,
     CAPTURA_NOMBRE,
     CAPTURA_PLACA,
     PROCESANDO_AUTORIZACION

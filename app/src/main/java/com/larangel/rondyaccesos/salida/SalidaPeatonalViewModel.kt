@@ -3,7 +3,7 @@ package com.larangel.rondyaccesos.models.com.larangel.rondyaccesos.salida
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.larangel.rondyaccesos.models.RegistroAcceso
+import com.larangel.rondyaccesos.models.AccesoBitacora
 import com.larangel.rondyaccesos.models.sockets.MessageType
 import com.larangel.rondyaccesos.models.sockets.RondySocketClient
 import com.larangel.rondyaccesos.models.sockets.SocketMessage
@@ -18,7 +18,7 @@ import java.time.format.DateTimeFormatter
 
 data class SalidaPeatonalUiState(
     val mensajeSuperior: String = "Ingrese criterio de búsqueda",
-    val peatonEncontrado: RegistroAcceso? = null
+    val peatonEncontrado: AccesoBitacora? = null
 )
 
 class SalidaPeatonalViewModel(application: Application) : AndroidViewModel(application) {
@@ -39,20 +39,19 @@ class SalidaPeatonalViewModel(application: Application) : AndroidViewModel(appli
             // val coincidencia = dataRawRondin.buscarPeatonAdentro(query)
 
             // Simulación de coincidencia encontrada en el coto
-            val mockPeaton = RegistroAcceso(
-                id = "88811",
-                fecha = LocalDate.now().toString(),
-                hora = "15:45:00",
+            val mockPeaton = AccesoBitacora(
+                fechaCreado = LocalTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")).toString(), // ID temporal offline
+                fechaIngreso = LocalTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")).toString(),
                 placa = "PEATONAL",
                 calle = "Circuito Olmos",
                 numero = "34",
                 tipo = "Visitante Peatonal",
                 conductor = "CARLOS GÓMEZ", // Nombre del peatón
                 descripcion = "Visita familiar",
-                fotoPlacaPath = "",
-                fotoRostroPath = "path/rostro_entrada.jpg",
+                foto1Url = "local/express_placa.jpg",
+                foto2Url = "",
                 qrData = "",
-                statusStr = "acceso permitido"
+                status = "acceso permitido"
             )
 
             // Filtro por similitud o coincidencia de texto (Usa tu función sonCadenasSimilares si es necesario)
@@ -82,10 +81,10 @@ class SalidaPeatonalViewModel(application: Application) : AndroidViewModel(appli
 
             // Creamos la estructura de egreso final
             val registroEgreso = visita.copy(
-                id = (LocalTime.now().toSecondOfDay() * -1).toString(), // ID negativo dinámico offline
-                hora = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")),
-                fotoPlacaPath = rutaFotoSalida, // Reutilizamos el campo para guardar la foto de salida física
-                statusStr = "salida peatonal registrada"
+                fechaCreado = LocalTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")).toString(), // ID temporal offline
+                fechaIngreso = LocalTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")).toString(),
+                foto1Url = rutaFotoSalida, // Reutilizamos el campo para guardar la foto de salida física
+                status = "salida peatonal registrada"
             )
 
             // 1. Envío asíncrono TCP síncrono al Módulo Central de Caseta (Nodo Padre)

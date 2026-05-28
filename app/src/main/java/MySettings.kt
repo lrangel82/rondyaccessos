@@ -86,6 +86,7 @@ class MySettings(private val context: Context) {
             val PARKING_SPREADSHEET_ID          = props.getProperty("googlesheet_parking_id") ?: ""
             val PERMISOS_SPREADSHEET_ID         = props.getProperty("googlesheet_permisos_ids") ?: "[]"
             val WHATSAPP_SPREADSHEET_ID         = props.getProperty("googlesheet_telefonos_whatsapp") ?: "[]"
+            val SALDOS_SPREADSHEET_ID          = props.getProperty("googlesheet_saldos_ids") ?: "[]"
             val COTO                            = if(props.getProperty("apptype") == "admon1") "coto1" else "coto2"
             val WS_AUTOS_REGISTRADOS            = props.getProperty("worksheet_autos_registrados") + "$POSTFIX_SHEETNAME"
             val WS_DOMICILIOS_UBICACION         = props.getProperty("worksheet_domicilios") + "$POSTFIX_SHEETNAME"
@@ -98,10 +99,14 @@ class MySettings(private val context: Context) {
             val WS_DOMICILIO_WARNINGS           = props.getProperty("worksheet_domicilio_warnings") + "$POSTFIX_SHEETNAME"
             val WS_RESIDENTES_UNIDAD            = props.getProperty("worksheet_residentes") + "$POSTFIX_SHEETNAME"
             val WS_ALARMAS_RONDIN               = props.getProperty("worksheet_alarmas_rondin") + "$POSTFIX_SHEETNAME"
+            val WS_DOMICILIOS_MOROSOS           = props.getProperty("worksheet_name_saldos") + "$POSTFIX_SHEETNAME"
             val GEMINI_API_KEY                  = props.getProperty("gemini_api_key")
             val CREDENTIALS_GOOGLE_API          = props.getProperty("credentialsgoogleapi")
             val TOKEN_API_BOTCASETA             = props.getProperty("token_api_botcaseta")
             val API_BOTCASETA                   = props.getProperty("api_botcaseta")
+            val LIMITE_MOROSO                   = props.getProperty("limite_moroso")
+            val WHATSAPP_PHONE_ID               = props.getProperty("phone_id")
+            val WHATSAPP_TOKEN                  = props.getProperty("token")
 
             putString("APP_NAME", APP_NAME)
             putString("POSTFIX_SHEETNAME", POSTFIX_SHEETNAME)
@@ -109,6 +114,7 @@ class MySettings(private val context: Context) {
             putString("PARKING_SPREADSHEET_ID", PARKING_SPREADSHEET_ID)
             putString("PERMISOS_SPREADSHEET_ID", PERMISOS_SPREADSHEET_ID)
             putString("WHATSAPP_SPREADSHEET_ID", WHATSAPP_SPREADSHEET_ID)
+            putString("SALDOS_SPREADSHEET_ID", SALDOS_SPREADSHEET_ID)
             putString("COTO", COTO)
             putString("WS_AUTOS_REGISTRADOS", WS_AUTOS_REGISTRADOS)
             putString("WS_DOMICILIOS_UBICACION", WS_DOMICILIOS_UBICACION)
@@ -121,10 +127,14 @@ class MySettings(private val context: Context) {
             putString("WS_DOMICILIO_WARNINGS", WS_DOMICILIO_WARNINGS)
             putString("WS_RESIDENTES_UNIDAD", WS_RESIDENTES_UNIDAD)
             putString("WS_ALARMAS_RONDIN", WS_ALARMAS_RONDIN)
+            putString("WS_DOMICILIOS_MOROSOS", WS_DOMICILIOS_MOROSOS)
             putString("GEMINI_API_KEY", GEMINI_API_KEY)
             putString("CREDENTIALS_GOOGLE_API", CREDENTIALS_GOOGLE_API)
             putString("TOKEN_API_BOTCASETA", TOKEN_API_BOTCASETA)
             putString("API_BOTCASETA", API_BOTCASETA)
+            putString("LIMITE_MOROSO", LIMITE_MOROSO)
+            putString("WHATSAPP_PHONE_ID", WHATSAPP_PHONE_ID)
+            putString("WHATSAPP_TOKEN", WHATSAPP_TOKEN)
 
 
             //CLEAN CACHE TIME
@@ -158,6 +168,8 @@ class MySettings(private val context: Context) {
             putString("REGISTRO_CARROS_SPREADSHEET_ID", "")
             putString("PARKING_SPREADSHEET_ID", "")
             putString("PERMISOS_SPREADSHEET_ID", "[]")
+            putString("WHATSAPP_SPREADSHEET_ID", "[]")
+            putString("SALDOS_SPREADSHEET_ID", "[]")
             //putString("COTO", COTO)
             putString("WS_AUTOS_REGISTRADOS", "")
             putString("WS_DOMICILIOS_UBICACION", "")
@@ -170,8 +182,14 @@ class MySettings(private val context: Context) {
             putString("WS_DOMICILIO_WARNINGS", "")
             putString("WS_RESIDENTES_UNIDAD", "")
             putString("WS_ALARMAS_RONDIN", "")
+            putString("WS_DOMICILIOS_MOROSOS", "")
             putString("GEMINI_API_KEY", "")
             putString("CREDENTIALS_GOOGLE_API","")
+            putString("TOKEN_API_BOTCASETA", "")
+            putString("API_BOTCASETA", "")
+            putString("LIMITE_MOROSO", "0.0")
+            putString("WHATSAPP_PHONE_ID", "")
+            putString("WHATSAPP_TOKEN", "")
 
             //CLEAN CACHE
             SheetTable.values().forEach{table ->

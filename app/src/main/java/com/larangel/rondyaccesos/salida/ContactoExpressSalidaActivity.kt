@@ -5,7 +5,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.larangel.rondyaccesos.databinding.ActivityContactoExpressSalidaBinding
-import com.larangel.rondyaccesos.models.RegistroAcceso
+import com.larangel.rondyaccesos.models.AccesoBitacora
 import com.larangel.rondyaccesos.models.sockets.MessageType
 import com.larangel.rondyaccesos.models.sockets.RondySocketClient
 import com.larangel.rondyaccesos.models.sockets.SocketMessage
@@ -49,20 +49,19 @@ class ContactoExpressSalidaActivity : AppCompatActivity() {
                 val timestampBase = (LocalTime.now().toSecondOfDay() * -1).toString()
 
                 // 1. Crear el Objeto de Regularización de Salida
-                val registroRegularizado = RegistroAcceso(
-                    id = timestampBase,
-                    fecha = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE),
-                    hora = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")),
+                val registroRegularizado = AccesoBitacora(
+                    fechaCreado = LocalTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")).toString(), // ID temporal offline
+                    fechaIngreso = LocalTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")).toString(),
                     placa = placa,
                     calle = calle,
                     numero = numero,
                     tipo = "Salida Regularizada",
                     conductor = conductor,
                     descripcion = if (motivo.isEmpty()) "Vehículo sin registro de entrada" else motivo,
-                    fotoPlacaPath = "local/express_placa.jpg",
-                    fotoRostroPath = "",
+                    foto1Url = "local/express_placa.jpg",
+                    foto2Url = "",
                     qrData = "",
-                    statusStr = "salida registrada"
+                    status = "salida registrada"
                 )
 
                 // 2. Transmitir el JSON de Regularización a la Caseta Central (Padre) vía TCP

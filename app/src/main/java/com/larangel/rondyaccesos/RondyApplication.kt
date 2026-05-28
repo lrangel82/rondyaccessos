@@ -1,6 +1,7 @@
 package com.larangel.rondyaccesos
 
 import android.app.Application
+import android.graphics.Bitmap
 import com.larangel.rondyaccesos.models.DataRawRondin
 import com.larangel.rondyaccesos.models.MySettings
 import com.larangel.rondyaccesos.models.network.BotCasetaApiService
@@ -15,6 +16,7 @@ class RondyApplication : Application() {
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     var registroCallbackActivo: ((calle: String, numero: String, nombre: String, tipo: String, placa: String) -> Unit)? = null
+    var imagenesCallBackActivo: ((String) -> Bitmap?)? = null
 
     // Instancias únicas inicializadas de forma perezosa (Lazy)
     val dataRawRondin: DataRawRondin by lazy {

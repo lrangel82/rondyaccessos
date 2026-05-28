@@ -14,7 +14,7 @@ import io.ktor.network.sockets.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.Json
-import com.larangel.rondyaccesos.models.RegistroAcceso
+import com.larangel.rondyaccesos.models.AccesoBitacora
 import io.ktor.utils.io.core.ByteReadPacket
 
 class RondySocketService : Service() {
@@ -124,7 +124,7 @@ class RondySocketService : Service() {
         }
     }
 
-    private fun evaluarAccesoLocal(registro: RegistroAcceso?): SocketMessage {
+    private fun evaluarAccesoLocal(registro: AccesoBitacora?): SocketMessage {
         if (registro == null) return SocketMessage(MessageType.RESPUESTA_VALIDACION, "", "CASETA", autorizado = false, motivoDenegacion = "Datos nulos")
 
         // Simulación lógica de validación dura (Este bloque interactúa con DataRawRondin)

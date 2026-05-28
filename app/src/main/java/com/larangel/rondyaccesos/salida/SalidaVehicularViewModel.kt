@@ -3,7 +3,7 @@ package com.larangel.rondyaccesos.models.com.larangel.rondyaccesos.salida
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.larangel.rondyaccesos.models.RegistroAcceso
+import com.larangel.rondyaccesos.models.AccesoBitacora
 import com.larangel.rondyaccesos.models.sockets.MessageType
 import com.larangel.rondyaccesos.models.sockets.RondySocketClient
 import com.larangel.rondyaccesos.models.sockets.SocketMessage
@@ -18,7 +18,7 @@ import java.time.format.DateTimeFormatter
 
 data class SalidaUiState(
     val mensajeSuperior: String = "Escaneando entorno...",
-    val vehiculoDetectado: RegistroAcceso? = null,
+    val vehiculoDetectado: AccesoBitacora? = null,
     val mostrarBotonForzar: Boolean = true
 )
 
@@ -39,18 +39,17 @@ class SalidaVehicularViewModel(application: Application) : AndroidViewModel(appl
         viewModelScope.launch {
             // TODO: Consultar tu clase DataRawRondin.kt filtrando en la tabla local
             // val registroEntrada = dataRawRondin.buscarIngresoActivoPorPlaca(placaLimpia)
-            val registroEntradaMock = RegistroAcceso(
-                id = "99999",
-                fecha = LocalDate.now().toString(),
-                hora = "12:00:00",
+            val registroEntradaMock = AccesoBitacora(
+                fechaCreado = LocalTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")).toString(), // ID temporal offline
+                fechaIngreso = LocalTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")).toString(),
                 placa = placaLimpia,
                 calle = "Circuito Olmos",
                 numero = "12-B",
                 tipo = "Visitante",
                 conductor = "REPARTIDOR COCA COLA",
                 descripcion = "Entrega de refrescos",
-                fotoPlacaPath = "", fotoRostroPath = "", qrData = "",
-                statusStr = "acceso permitido"
+                foto1Url = "", foto2Url = "", qrData = "",
+                status = "acceso permitido"
             )
 
             if (registroEntradaMock != null) {
@@ -81,9 +80,9 @@ class SalidaVehicularViewModel(application: Application) : AndroidViewModel(appl
 
             // Generamos el registro de egreso modificado
             val registroEgreso = vehiculo.copy(
-                id = (LocalTime.now().toSecondOfDay() * -1).toString(), // Llave negativa offline
-                hora = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")),
-                statusStr = "salida registrada"
+                fechaCreado = LocalTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")).toString(), // ID temporal offline
+                fechaIngreso = LocalTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")).toString(),
+                status = "salida registrada"
             )
 
             // 1. Transmitir JSON en tiempo real a la Caseta Central (Padre) vía TCP

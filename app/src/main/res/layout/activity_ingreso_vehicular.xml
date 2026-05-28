@@ -296,6 +296,46 @@
             android:textAppearance="@style/TextAppearance.AppCompat.Small"
             android:textColor="#03A9F4"
             android:textStyle="italic" />
+
     </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/layoutVisualEstatusDerecho"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="?attr/popupMenuBackground"
+        android:padding="24dp"
+        android:visibility="visible"
+        tools:layout_editor_absoluteX="28dp"
+        tools:layout_editor_absoluteY="440dp"
+        tools:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/panelColorContenedor"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="vertical"> <!-- Managed dynamically in code -->
+
+            <TextView
+                android:id="@+id/tvEstatusGrande"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="AUTORIZADO"
+                android:textSize="56sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvEstatusDetallePeque"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="Razón: Ingreso Estándar"
+                android:textSize="22sp" />
+        </LinearLayout>
+    </FrameLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

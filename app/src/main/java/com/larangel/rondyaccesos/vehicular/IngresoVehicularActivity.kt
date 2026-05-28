@@ -39,6 +39,8 @@ import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 import android.annotation.SuppressLint
 import android.app.AlertDialog
+import android.graphics.Canvas
+import android.graphics.Paint
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -55,6 +57,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.larangel.rondyaccesos.models.network.WhatsappAuthStatus
 import com.larangel.rondyaccesos.R
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 
 
 class IngresoVehicularActivity : AppCompatActivity() {
@@ -99,12 +106,18 @@ class IngresoVehicularActivity : AppCompatActivity() {
         }
     }
 
+    private var currentPlacaMedia: org.videolan.libvlc.Media? = null
+    private val pixelCopyMutex = kotlinx.coroutines.sync.Mutex()
+    private lateinit var lastBitmapReadedPlacas: Bitmap
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityIngresoVehicularBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         configurarAccionesGlobales()
+
+        lastBitmapReadedPlacas = getBitmapFailCapture() //Inizializar
 
         //Placas
         inicializarContenedorVLC()
@@ -121,6 +134,24 @@ class IngresoVehicularActivity : AppCompatActivity() {
 
         //Registrar ciclo
         observarCicloDelAsistente()
+    }
+    override fun onStart() {
+        super.onStart()
+        val app = application as RondyApplication
+
+        // Register the functional extractor to serve the current view frames
+        app.imagenesCallBackActivo = { tipoCamara ->
+            when (tipoCamara) {
+                "PLACA" -> obtenerUltimoFramePixelCopyPlacas()
+                "ROSTRO" -> binding.cameraXQrPreview.bitmap
+                else -> null
+            }
+        }
+    }
+    override fun onStop() {
+        super.onStop()
+        // Nullify on stop to prevent layout context leaks during app minimization
+        (application as RondyApplication).registroCallbackActivo = null
     }
 
     private fun configurarAccionesGlobales() {
@@ -415,6 +446,21 @@ class IngresoVehicularActivity : AppCompatActivity() {
                             }
                         }
 
+                        CaptureStep.CONFRMAR_DOMICILIO -> {
+                            controlarEstadoMicrofono(habilitar = true)
+                            binding.lblInstruccionSeccion.text = "3. Confirme su direccion, es correcta ${state.calleInput} : ${state.numeroInput}?"
+                            binding.ScrollViewGridBotones.visibility = View.VISIBLE
+                            binding.txtInputManual.visibility = View.GONE
+                            binding.btnSiguientePasoManual.visibility = View.GONE
+
+                            listOf<String>("SI ${state.calleInput}:${state.numeroInput}","NO").forEach { respuesta ->
+                                inyectarBotonEnMalla(respuesta) {
+                                    controlarEstadoMicrofono(habilitar = false)
+                                    viewModel.confirmarDireccion(respuesta)
+                                }
+                            }
+                        }
+
                         CaptureStep.CAPTURA_NOMBRE -> {
                             // En pasos de teclado manual, apagamos el micro para liberar el búfer táctil al 100%
                             controlarEstadoMicrofono(habilitar = true)
@@ -448,6 +494,27 @@ class IngresoVehicularActivity : AppCompatActivity() {
                             }
                         }
                     }
+                }
+
+                //PANEL MESAJE ACCESO Authorizado/Denegado
+                if (state.mostrarPanelResultadoDerecho) {
+                    binding.layoutVisualEstatusDerecho.visibility = View.VISIBLE
+                    if (state.resultadoEsAutorizado) {
+                        // High-contrast: Green Background with Black Text
+                        binding.panelColorContenedor.setBackgroundColor(Color.parseColor("#4CAF50"))
+                        binding.tvEstatusGrande.setTextColor(Color.BLACK)
+                        binding.tvEstatusDetallePeque.setTextColor(Color.BLACK)
+                        binding.tvEstatusGrande.text = "AUTORIZADO"
+                    } else {
+                        // High-contrast: Red Background with White Text
+                        binding.panelColorContenedor.setBackgroundColor(Color.parseColor("#E53935"))
+                        binding.tvEstatusGrande.setTextColor(Color.WHITE)
+                        binding.tvEstatusDetallePeque.setTextColor(Color.WHITE)
+                        binding.tvEstatusGrande.text = "DENEGADO"
+                    }
+                    binding.tvEstatusDetallePeque.text = state.resultadoMotivoDetalle
+                } else {
+                    binding.layoutVisualEstatusDerecho.visibility = View.GONE
                 }
             }
         }
@@ -532,6 +599,13 @@ class IngresoVehicularActivity : AppCompatActivity() {
     }
     private fun encenderStreamVideoRtspPlacas() {
         try {
+            // Ensure any existing memory pointers are fully cleared out cleanly before attaching frames
+            ocrJob?.cancel()
+            ocrJob = null
+
+            currentPlacaMedia?.release()
+            currentPlacaMedia = null
+
             // Bind the LibVLC media player directly to the XML view texture surface layout
             mediaPlayer?.attachViews(binding.vlcPlacaSurface, null, true, false)
 
@@ -539,9 +613,8 @@ class IngresoVehicularActivity : AppCompatActivity() {
                 when (evento.type) {
                     MediaPlayer.Event.EncounteredError -> {
                         Log.e("VlcNetwork", "Error de red asíncrono detectado en el stream RTSP (IP inválida o caída).")
-                        // Regresar al hilo principal para activar los controles en la pantalla
                         lifecycleScope.launch(Dispatchers.Main) {
-                            binding.txtUrlRtspFix.setText( viewModel.urlCamaraPlacasRtsp )
+                            binding.txtUrlRtspFix.setText(viewModel.urlCamaraPlacasRtsp)
                             viewModel.reportarFallaConexionPlacas()
                         }
                     }
@@ -554,23 +627,25 @@ class IngresoVehicularActivity : AppCompatActivity() {
                 }
             }
 
-            val media = Media(libVLC, viewModel.urlCamaraPlacasRtsp).apply {
+            // Explicitly track allocated reference via currentPlacaMedia to clear later
+            val mediaInstance = Media(libVLC, viewModel.urlCamaraPlacasRtsp).apply {
                 setHWDecoderEnabled(true, false) // Enable native hardware acceleration
             }
-            mediaPlayer?.media = media
+
+            currentPlacaMedia = mediaInstance
+            mediaPlayer?.media = currentPlacaMedia
             mediaPlayer?.play()
 
-            // 🚀 SOLUCIÓN 2: Temporizador de pánico por software (Network Timeout)
-            // Si pasan 5 segundos y el reproductor sigue trabado intentando conectar a la IP muerta,
-            // cancelamos la petición y pintamos el menú de configuración de forma automática.
+            // SOFTWARE PANIC CONNECTIONS TIMEOUT BUFFER
             lifecycleScope.launch(Dispatchers.Main) {
-                delay(5000) // 5 segundos de tolerancia máxima de conexión
+                delay(5000) // 5 seconds maximum tolerance frame
+                // Ensure context is still alive and didn't change before execution updates
                 if (mediaPlayer?.isPlaying == false && viewModel.vlcStreamActive.value) {
                     Log.w("VlcNetwork", "Timeout de 5 segundos alcanzado sin respuesta de la cámara IP.")
-                    Toast.makeText(applicationContext, "Timeout de 5 segundos alcanzado sin respuesta de la cámara PLACAS", Toast.LENGTH_LONG).show()
-                    apagarStreamVideoRtspPlacas() // Detener el búfer trabado
-                    binding.txtUrlRtspFix.setText( viewModel.urlCamaraPlacasRtsp )
-                    viewModel.reportarFallaConexionPlacas() // Mostrar los controles en el XML
+                    Toast.makeText(applicationContext, "Timeout alcanzado sin respuesta de la cámara PLACAS", Toast.LENGTH_LONG).show()
+                    apagarStreamVideoRtspPlacas()
+                    binding.txtUrlRtspFix.setText(viewModel.urlCamaraPlacasRtsp)
+                    viewModel.reportarFallaConexionPlacas()
                 }
             }
 
@@ -583,10 +658,30 @@ class IngresoVehicularActivity : AppCompatActivity() {
         }
     }
     private fun apagarStreamVideoRtspPlacas() {
-        ocrJob?.cancel() // Stop the OCR extractor loop immediately
-        mediaPlayer?.stop()
-        mediaPlayer?.detachViews()
-        Log.d("VlcHardware", "Stream RTSP cerrado e hilos liberados correctamente.")
+        try {
+            ocrJob?.cancel() // Stop the OCR extractor loop immediately
+            ocrJob = null
+
+            mediaPlayer?.let { player ->
+                if (player.isPlaying) {
+                    player.stop()
+                }
+                player.detachViews()
+                player.media = null
+            }
+
+            // CRITICAL SAVINGS FIX: Force native C++ memory reclamation block instantly
+            currentPlacaMedia?.let { media ->
+                if (!media.isReleased) {
+                    media.release()
+                }
+            }
+            currentPlacaMedia = null
+
+            Log.d("VlcHardware", "Stream RTSP cerrado e hilos nativos liberados correctamente.")
+        } catch (e: Exception) {
+            Log.e("VlcHardware", "Error handling structural release sequence on player stop", e)
+        }
     }
     /**
      * 👁️ CONTINUOUS EXTRACTOR LOOP: Pulls video bitmaps from the LibVLC texture,
@@ -595,11 +690,9 @@ class IngresoVehicularActivity : AppCompatActivity() {
     private fun iniciarBucleProcesamientoOcrPlacas() {
         ocrJob?.cancel()
         ocrJob = lifecycleScope.launch(Dispatchers.Default) {
-
-            // Buscamos la superficie de video interna que LibVLC inyectó en el layout
             var surfaceInternaVLC: SurfaceView? = null
+
             withContext(Dispatchers.Main) {
-                // Buscamos de forma recursiva en el contenedor ViewGroup de la vista
                 for (i in 0 until binding.vlcPlacaSurface.childCount) {
                     val child = binding.vlcPlacaSurface.getChildAt(i)
                     if (child is SurfaceView) {
@@ -609,33 +702,42 @@ class IngresoVehicularActivity : AppCompatActivity() {
                 }
             }
 
-            // Bucle continuo mientras el reproductor RTSP esté activo
+            // Loop continues safely while streaming process parameters are active
             while (mediaPlayer?.isPlaying == true) {
-                delay(1000) // Procesar un fotograma cada segundo para proteger la CPU
+                delay(1000) // Process one frame every second to protect CPU profiles
 
                 val surfaceTarget = surfaceInternaVLC
-                if (surfaceTarget != null && surfaceTarget.holder.surface.isValid) {
+                // Safety boundary: Ensure context surface state is completely solid before copy triggers
+                if (surfaceTarget != null && surfaceTarget.holder.surface.isValid && mediaPlayer?.isPlaying == true) {
 
-                    // Creamos un Bitmap en memoria con las dimensiones exactas de la vista de la cámara
-                    val bitmapSnapshot = Bitmap.createBitmap(
+                    //val bitmapSnapshot = Bitmap.createBitmap(
+                    lastBitmapReadedPlacas= Bitmap.createBitmap(
                         surfaceTarget.width,
                         surfaceTarget.height,
                         Bitmap.Config.ARGB_8888
                     )
 
-                    // Usamos PixelCopy para clonar la textura de la GPU en el hilo principal de renderizado
                     withContext(Dispatchers.Main) {
-                        PixelCopy.request(
-                            surfaceTarget,
-                            bitmapSnapshot,
-                            { resultado ->
-                                if (resultado == PixelCopy.SUCCESS) {
-                                    // Si la GPU entregó la imagen con éxito, la mandamos al OCR en background
-                                    procesarOcrEnHiloDeFondo(bitmapSnapshot)
-                                }
-                            },
-                            Handler(Looper.getMainLooper())
-                        )
+                        // Double check validation before launching pixel frame cloning transactions
+                        if (surfaceTarget.holder.surface.isValid) {
+                            PixelCopy.request(
+                                surfaceTarget,
+                                //bitmapSnapshot,
+                                lastBitmapReadedPlacas,
+                                { resultado ->
+                                    if (resultado == PixelCopy.SUCCESS) {
+                                        procesarOcrEnHiloDeFondo(lastBitmapReadedPlacas)//bitmapSnapshot)
+                                    } else {
+                                        //bitmapSnapshot.recycle() // Avoid dirty leaking allocations
+                                        lastBitmapReadedPlacas.recycle()
+                                    }
+                                },
+                                Handler(Looper.getMainLooper())
+                            )
+                        } else {
+                            //bitmapSnapshot.recycle()
+                            lastBitmapReadedPlacas.recycle()
+                        }
                     }
                 }
             }
@@ -646,10 +748,12 @@ class IngresoVehicularActivity : AppCompatActivity() {
 
         textRecognizer.process(image)
             .addOnSuccessListener { visionText ->
+                // Recycle processed image structure memory rapidly
+                bitmap.recycle()
                 for (block in visionText.textBlocks) {
                     val textoEncontrado = block.text.trim()
 
-                    // Expresión regular para matrículas vehiculares de 3 a 8 caracteres
+                    // Match criteria regex filter tracking patterns
                     if (textoEncontrado.matches(Regex("^[a-zA-Z0-9\\s-]{3,8}$"))) {
                         viewModel.registrarPlacaDetectadaPorOcr(textoEncontrado)
                         break
@@ -657,34 +761,128 @@ class IngresoVehicularActivity : AppCompatActivity() {
                 }
             }
             .addOnFailureListener {
-                // Manejo preventivo si falla el procesamiento del frame
+                bitmap.recycle() // Clean leak tracks on structural engine failures
             }
     }
+    private fun obtenerUltimoFramePixelCopyPlacas(): Bitmap {
+        if (lastBitmapReadedPlacas == null || lastBitmapReadedPlacas.isRecycled) {
+            return getBitmapFailCapture()
+        }else {
+            return lastBitmapReadedPlacas
+        }
+        ///////////
+//        return runBlocking(Dispatchers.IO) {
+//            try {
+//                pixelCopyMutex.withLock {
+//                    var surfaceInternaVLC: SurfaceView? = null
+//
+//                    withContext(Dispatchers.Main) {
+//                        for (i in 0 until binding.vlcPlacaSurface.childCount) {
+//                            val child = binding.vlcPlacaSurface.getChildAt(i)
+//                            if (child is SurfaceView) {
+//                                surfaceInternaVLC = child
+//                                break
+//                            }
+//                        }
+//                    }
+//
+//                    val targetSurface = surfaceInternaVLC
+//                    // Boundary safety evaluation check routines
+//                    if (targetSurface == null || !targetSurface.holder.surface.isValid || mediaPlayer?.isPlaying != true) {
+//                        Log.e(
+//                            "PixelCopyFrame",
+//                            "VLC Internal SurfaceView is invalid or player is stopped. Dispatched fallback."
+//                        )
+//                        return@withLock fallbackBitmap
+//                    }
+//                    val width = targetSurface.width
+//                    val height = targetSurface.height
+//                    if (width <= 0 || height <= 0) {
+//                        return@withLock fallbackBitmap
+//                    }
+//
+//                    val bitmapSnapshot = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+//
+//                    // Execute quick texture copy under strict time monitoring boundaries
+//                    val copyResult = withTimeoutOrNull(800) {
+//                        suspendCancellableCoroutine { continuation ->
+//                            PixelCopy.request(
+//                                targetSurface,
+//                                bitmapSnapshot,
+//                                { resultado ->
+//                                    if (resultado == PixelCopy.SUCCESS) {
+//                                        if (continuation.isActive) continuation.resume(true){}
+//                                    } else {
+//                                        Log.e(
+//                                            "PixelCopyFrame",
+//                                            "Hardware GPU PixelCopy failed. Code: $resultado"
+//                                        )
+//                                        if (continuation.isActive) continuation.resume(false){}
+//                                    }
+//                                },
+//                                Handler(Looper.getMainLooper())
+//                            )
+//                        }
+//                    }
+//
+//                    if (copyResult == true) {
+//                        fallbackBitmap.recycle()
+//                        return@withLock bitmapSnapshot
+//                    } else {
+//                        Log.w(
+//                            "PixelCopyFrame",
+//                            "PixelCopy operation timed out or rejected. Returning placeholder canvas."
+//                        )
+//                        bitmapSnapshot.recycle()
+//                        return@withLock fallbackBitmap
+//                    }
+//                }
+//            } catch (e: Exception) {
+//                Log.e("PixelCopyFrame", "Exception caught mapping texture stream frame elements", e)
+//                return@runBlocking fallbackBitmap
+//            }
+//        }
+    }
+    private fun getBitmapFailCapture(): Bitmap{
+        val fallbackBitmap = Bitmap.createBitmap(640, 480, Bitmap.Config.ARGB_8888)
+        Bitmap.createBitmap(640, 480, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(fallbackBitmap)
+        canvas.drawColor(Color.DKGRAY)
+        val paint = Paint().apply {
+            color = Color.WHITE
+            textSize = 32f
+            isAntiAlias = true
+            textAlign = Paint.Align.CENTER
+        }
+        canvas.drawText("EVIDENCIA AUTOMATICA - NO RTSP FEED", 320f, 240f, paint)
+        return fallbackBitmap
+    }
+
 
     // --- QR
     private fun configurarEIniciarCameraXFrontal() {
-        // 1. Obtener el proveedor de la cámara de forma explícita en el hilo principal
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+    // 1. Obtener el proveedor de la cámara de forma explícita en el hilo principal
+    val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
 
-        cameraProviderFuture.addListener({
-            try {
-                // Asegurar que la Activity siga viva antes de tocar el hardware
-                if (isFinishing || isDestroyed) return@addListener
+    cameraProviderFuture.addListener({
+        try {
+            // Asegurar que la Activity siga viva antes de tocar el hardware
+            if (isFinishing || isDestroyed) return@addListener
 
-                cameraProvider = cameraProviderFuture.get()
+            cameraProvider = cameraProviderFuture.get()
 
-                // 2. Desvincular de forma agresiva cualquier caso de uso previo o huérfano
-                cameraProvider?.unbindAll()
+            // 2. Desvincular de forma agresiva cualquier caso de uso previo o huérfano
+            cameraProvider?.unbindAll()
 
-                // 3. Invocar la conexión secuencial blindada de texturas
-                conectarCasosDeUsoDeCamaraX()
+            // 3. Invocar la conexión secuencial blindada de texturas
+            conectarCasosDeUsoDeCamaraX()
 
-            } catch (e: Exception) {
-                Log.e("CameraXHardware", "Fallo crítico al inicializar el proveedor: ${e.message}")
-                viewModel.reportarFallaConexionQr()
-            }
-        }, ContextCompat.getMainExecutor(this))
-    }
+        } catch (e: Exception) {
+            Log.e("CameraXHardware", "Fallo crítico al inicializar el proveedor: ${e.message}")
+            viewModel.reportarFallaConexionQr()
+        }
+    }, ContextCompat.getMainExecutor(this))
+}
 
     private fun conectarCasosDeUsoDeCamaraX() {
         val provider = cameraProvider ?: return
@@ -871,12 +1069,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
     /**
      * Modifica la UI del diálogo actual para mostrar los estados finales de éxito/falla sin parpadear la pantalla.
      */
-    private fun actualizarEstadoEstiloDialogo(
-        titulo: String,
-        mensajePersonalizado: String? = null,
-        colorHex: String,
-        mostrarBoton: Boolean
-    ) {
+    private fun actualizarEstadoEstiloDialogo(titulo: String, mensajePersonalizado: String? = null, colorHex: String, mostrarBoton: Boolean) {
         whatsappDialog?.let { dialog ->
             val tvTitulo = dialog.findViewById<TextView>(R.id.tvDialogTitulo)
             val tvContador = dialog.findViewById<TextView>(R.id.tvDialogContador)

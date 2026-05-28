@@ -3,7 +3,7 @@ package com.larangel.rondyaccesos.models.com.larangel.rondyaccesos.peatonal
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.larangel.rondyaccesos.models.RegistroAcceso
+import com.larangel.rondyaccesos.models.AccesoBitacora
 import com.larangel.rondyaccesos.models.sockets.MessageType
 import com.larangel.rondyaccesos.models.sockets.RondySocketClient
 import com.larangel.rondyaccesos.models.sockets.SocketMessage
@@ -84,20 +84,20 @@ class IngresoPeatonalViewModel(application: Application) : AndroidViewModel(appl
                     return@launch
                 }
 
-                val registroPeatonal = RegistroAcceso(
-                    id = (LocalTime.now().toSecondOfDay() * -1).toString(), // ID temporal offline
-                    fecha = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE),
-                    hora = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")),
+                val registroPeatonal = AccesoBitacora(
+                    fechaCreado = LocalTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")).toString(), // ID temporal offline
+                    fechaIngreso = LocalTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")).toString(),
                     placa = "PEATONAL",
                     calle = state.calle,
                     numero = state.numero,
                     tipo = "Visitante Peatonal",
                     conductor = state.nombre,
                     descripcion = state.motivo,
-                    fotoPlacaPath = "",
-                    fotoRostroPath = fotoRostroPath,
+                    foto1Url = "",
+                    foto2Url = fotoRostroPath,
                     qrData = "",
-                    statusStr = if (state.esMoroso) "acceso denegado" else "acceso permitido"
+                    fechaSalida = "",
+                    status = if (state.esMoroso) "AUTORIZADO" else "DENEGADO"
                 )
 
                 _uiState.update { it.copy(mensajeSuperior = "Sincronizando registro con caseta principal...") }
