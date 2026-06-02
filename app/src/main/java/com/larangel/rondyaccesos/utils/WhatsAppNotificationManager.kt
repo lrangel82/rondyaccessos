@@ -38,7 +38,7 @@ object WhatsAppNotificationManager {
         val phoneIdMeta = mySettings.getString("WHATSAPP_PHONE_ID","")
 
         val domicilioFormateado = "${acceso.calle} #${acceso.numero}"
-        val posiblesDenegados: List<String> = listOf("NO","MOROSO","NIEGA ACCESO")
+        val posiblesDenegados: List<String> = listOf("NO","MOROSO","NIEGA ACCESO","DENEGADO")
         val esDenegado = posiblesDenegados.any { palabra ->
             acceso.status.contains(palabra, ignoreCase = true)
         }

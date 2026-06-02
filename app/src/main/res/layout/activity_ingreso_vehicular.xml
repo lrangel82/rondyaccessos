@@ -212,6 +212,15 @@
 
         <!-- Instrucción actual en Letras Grandes -->
         <TextView
+            android:id="@+id/lblHistorialDatos"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Datos:"
+            android:textAllCaps="false"
+            android:textColor="@color/material_dynamic_neutral99"
+            android:textStyle="italic" />
+
+        <TextView
             android:id="@+id/lblInstruccionSeccion"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

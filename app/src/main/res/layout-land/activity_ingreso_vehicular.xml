@@ -222,6 +222,15 @@
         app:layout_constraintStart_toEndOf="@id/guidelineCentro"
         app:layout_constraintTop_toBottomOf="@id/headerTop">
 
+        <TextView
+            android:id="@+id/lblHistorialDatos"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Datos:"
+            android:textAllCaps="false"
+            android:textColor="@color/material_dynamic_neutral99"
+            android:textStyle="italic" />
+
         <!-- Instrucción actual en Letras Grandes -->
         <TextView
             android:id="@+id/lblInstruccionSeccion"
@@ -317,7 +326,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:padding="24dp"
-        android:visibility="visible"
+        android:visibility="gone"
         tools:layout_editor_absoluteX="314dp"
         tools:layout_editor_absoluteY="269dp"
         tools:visibility="visible">
@@ -328,7 +337,8 @@
             android:layout_height="match_parent"
             android:background="?attr/popupMenuBackground"
             android:gravity="center"
-            android:orientation="vertical"> <!-- Managed dynamically in code -->
+            android:orientation="vertical"
+            > <!-- Managed dynamically in code -->
 
             <TextView
                 android:id="@+id/tvEstatusGrande"

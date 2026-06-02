@@ -39,6 +39,7 @@ import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 import android.annotation.SuppressLint
 import android.app.AlertDialog
+import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import androidx.activity.result.contract.ActivityResultContracts
@@ -51,6 +52,7 @@ import com.larangel.rondyaccesos.ui.VigilanteConfigActivity
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import android.speech.tts.UtteranceProgressListener
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.TextView
 import androidx.lifecycle.Lifecycle
@@ -157,6 +159,11 @@ class IngresoVehicularActivity : AppCompatActivity() {
     private fun configurarAccionesGlobales() {
         binding.btnReiniciarRegistro.setOnClickListener {
             ultimoPasoProcesado = null // Forzar refresco visual
+            ocultarTecladoVirtual()
+
+            whatsappDialog?.dismiss()
+            whatsappDialog = null
+
             viewModel.reiniciarAsistenteCompleto()
         }
 
@@ -172,11 +179,13 @@ class IngresoVehicularActivity : AppCompatActivity() {
                 CaptureStep.CAPTURA_NOMBRE -> {
                     viewModel.guardarNombreYPasarAPlacas(valorManual)
                     binding.txtInputManual.text.clear()
+                    ocultarTecladoVirtual()
                 }
                 CaptureStep.CAPTURA_PLACA -> {
                     //viewModel.dispararProtocoloDeSeguridadYWhatsApp(valorManual, "Captura Manual Integrada")
                     viewModel.guardarPlacaYSolicitarAutorizacion(valorManual)
                     binding.txtInputManual.text.clear()
+                    ocultarTecladoVirtual()
                 }
                 else -> {}
             }
@@ -371,10 +380,19 @@ class IngresoVehicularActivity : AppCompatActivity() {
     private fun observarCicloDelAsistente() {
         lifecycleScope.launch {
             viewModel.uiState.collectLatest { state ->
+                val datosAcumulados = StringBuilder("Datos: ")
+                if (state.tipoInput.isNotEmpty()) datosAcumulados.append(" ${state.tipoInput} | ")
+                if (state.calleInput.isNotEmpty()) datosAcumulados.append("Calle: ${state.calleInput} | ")
+                if (state.numeroInput.isNotEmpty()) datosAcumulados.append("#: ${state.numeroInput} | ")
+                if (state.conductorInput.isNotEmpty()) datosAcumulados.append("N: ${state.conductorInput}")
+
                 // Componentes volátiles que sí pueden refrescarse constantemente sin romper botones
                 binding.lblTopMensaje.text = state.lblTopMensaje
                 binding.lblTimerInactividad.text = "Inactividad: ${state.segundosRestantes}s"
                 binding.lblSubtitulosAsistente.text = state.subtitulosAsistente
+                binding.lblHistorialDatos?.text = datosAcumulados.toString()
+                binding.lblHistorialDatos?.visibility = if (datosAcumulados.length > 8) View.VISIBLE else View.GONE
+
 
                 // 🛑 CORRECCIÓN ANR CRÍTICA: Solo regenerar los Chips si el paso cambió físicamente
                 if (ultimoPasoProcesado != state.currentStep) {
@@ -461,6 +479,21 @@ class IngresoVehicularActivity : AppCompatActivity() {
                             }
                         }
 
+                        CaptureStep.PREGUNTA_OTRA_DIRECCION -> {
+                            controlarEstadoMicrofono(habilitar = true)
+                            binding.lblInstruccionSeccion.text = "¿El transportista va a entregar a otro domicilio?"
+                            binding.ScrollViewGridBotones.visibility = View.VISIBLE
+                            binding.txtInputManual.visibility = View.GONE
+                            binding.btnSiguientePasoManual.visibility = View.GONE
+
+                            inyectarBotonEnMalla("SÍ, IR A OTRA DIRECCIÓN") {
+                                viewModel.responderPreguntaOtraDireccion(quiereOtra = true)
+                            }
+                            inyectarBotonEnMalla("NO, FINALIZAR CAPTURA") {
+                                viewModel.responderPreguntaOtraDireccion(quiereOtra = false)
+                            }
+                        }
+
                         CaptureStep.CAPTURA_NOMBRE -> {
                             // En pasos de teclado manual, apagamos el micro para liberar el búfer táctil al 100%
                             controlarEstadoMicrofono(habilitar = true)
@@ -483,6 +516,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
                         }
 
                         CaptureStep.PROCESANDO_AUTORIZACION -> {
+                            ocultarTecladoVirtual()
                             controlarEstadoMicrofono(habilitar = false)
                             binding.lblInstruccionSeccion.text = "Procesando Estatus de Seguridad..."
                             binding.ScrollViewGridBotones.visibility = View.GONE
@@ -1017,6 +1051,15 @@ class IngresoVehicularActivity : AppCompatActivity() {
                             )
                         }
 
+                        is WhatsappAuthStatus.Info -> {
+                            actualizarEstadoEstiloDialogo(
+                                titulo = "Info",
+                                mensajePersonalizado = status.msg,
+                                colorHex = "#27CCF5",  //Azul
+                                mostrarBoton = false // Permite cerrar el diálogo si la API de Render cae
+                            )
+                        }
+
                         is WhatsappAuthStatus.Error -> {
                             actualizarEstadoEstiloDialogo(
                                 titulo = "ERROR",
@@ -1087,6 +1130,15 @@ class IngresoVehicularActivity : AppCompatActivity() {
             }
 
             btnCancelar?.visibility = if (mostrarBoton) android.view.View.VISIBLE else android.view.View.GONE
+        }
+    }
+
+
+    private fun ocultarTecladoVirtual() {
+        val viewFocus = this.currentFocus
+        if (viewFocus != null) {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(viewFocus.windowToken, 0)
         }
     }
 

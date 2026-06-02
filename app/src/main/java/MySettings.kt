@@ -107,6 +107,10 @@ class MySettings(private val context: Context) {
             val LIMITE_MOROSO                   = props.getProperty("limite_moroso")
             val WHATSAPP_PHONE_ID               = props.getProperty("phone_id")
             val WHATSAPP_TOKEN                  = props.getProperty("token")
+            val TWILIO_ACCOUNT_SID              = props.getProperty("tw_account_sid")
+            val TWILIO_TOKEN                    = props.getProperty("tw_token")
+            val TWILIO_URL_FLOW                 = props.getProperty("tw_urlflow_llamada")
+            val TWILIO_TELEFONO                 = props.getProperty("tw_telefono")
 
             putString("APP_NAME", APP_NAME)
             putString("POSTFIX_SHEETNAME", POSTFIX_SHEETNAME)
@@ -135,6 +139,11 @@ class MySettings(private val context: Context) {
             putString("LIMITE_MOROSO", LIMITE_MOROSO)
             putString("WHATSAPP_PHONE_ID", WHATSAPP_PHONE_ID)
             putString("WHATSAPP_TOKEN", WHATSAPP_TOKEN)
+            putString("TWILIO_ACCOUNT_SID", TWILIO_ACCOUNT_SID)
+            putString("TWILIO_TOKEN", TWILIO_TOKEN)
+            putString("TWILIO_URL_FLOW", TWILIO_URL_FLOW)
+            putString("TWILIO_TELEFONO", TWILIO_TELEFONO)
+
 
 
             //CLEAN CACHE TIME
@@ -190,6 +199,10 @@ class MySettings(private val context: Context) {
             putString("LIMITE_MOROSO", "0.0")
             putString("WHATSAPP_PHONE_ID", "")
             putString("WHATSAPP_TOKEN", "")
+            putString("TWILIO_ACCOUNT_SID", "")
+            putString("TWILIO_TOKEN", "")
+            putString("TWILIO_URL_FLOW", "")
+            putString("TWILIO_TELEFONO", "")
 
             //CLEAN CACHE
             SheetTable.values().forEach{table ->

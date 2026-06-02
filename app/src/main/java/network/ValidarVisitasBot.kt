@@ -23,11 +23,26 @@ data class ValidarVisitaRequest(
     var quien_valido: String? = null,
     var respuesta: String? = null
 )
+@Serializable
+data class ValidarVisitaIVRRequest(
+    var telefono: String,
+    val calle: String,
+    val numero: String,
+    val conductor: String,
+    val motivo: String
+)
 
 @Serializable
 data class ValidarVisitaResponse(
     val last_actividad: String?,
     val fecha_ultima_actualizacion: String? // String ISO-8601 UTC
+)
+@Serializable
+data class ValidarVisitaIVRResponse(
+    val last_actividad: String?,
+    val fecha_ultima_actualizacion: String?, // String ISO-8601 UTC
+    val resultado: Int?,
+    val telefono: String?
 )
 
 interface BotCasetaApiService {
@@ -42,6 +57,12 @@ interface BotCasetaApiService {
         @Header("Authorization") token: String,
         @Body request: ValidarVisitaRequest
     ): Response<Unit>
+
+    @POST("ivr_validar")
+    suspend fun validarVisitaIVR(
+        @Header("Authorization") token: String,
+        @Body request: ValidarVisitaIVRRequest
+    ): Response<ValidarVisitaIVRResponse>
 
     companion object {
         fun create(mySettings: MySettings): BotCasetaApiService {
@@ -71,5 +92,6 @@ sealed class WhatsappAuthStatus {
     object Autorizado : WhatsappAuthStatus()
     object Denegado : WhatsappAuthStatus()
     object Timeout : WhatsappAuthStatus()
+    data class Info(val msg:String): WhatsappAuthStatus()
     data class Error(val msg: String) : WhatsappAuthStatus()
 }

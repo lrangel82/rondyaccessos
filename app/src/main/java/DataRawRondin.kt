@@ -43,7 +43,7 @@ class DataRawRondin(
     private val mySettings = MySettings(context)
     private lateinit var sheetsService: Sheets
     private val TAG = "DataRawRondin"
-    private val CACHE_DURATION_MS = 60 * 60 * 1000 // 1 hora
+    private val CACHE_DURATION_MS = 10 * 60 * 1000 // 10 min
     private val syncMutex = Mutex()
 
     // Estado en Memoria (Tu patrón original)
@@ -225,7 +225,8 @@ class DataRawRondin(
         val state = tableStates[table]!!
         val spreadId = mySettings.getString("PARKING_SPREADSHEET_ID", "")
         if (spreadId.isEmpty()) return@withContext false
-        val rangeStr = "${table.sheetName}!${table.range}"
+        //val rangeStr = "${table.sheetName}!${table.range}"
+        val rangeStr = "${table.sheetName}!A:A"
 
         return@withContext try {
             syncMutex.withLock {

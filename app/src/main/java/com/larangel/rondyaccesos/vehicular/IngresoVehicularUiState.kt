@@ -28,7 +28,10 @@ data class IngresoVehicularUiState(
     val mostrarPanelResultadoDerecho: Boolean = false,
     val resultadoEsAutorizado: Boolean = false,
     val resultadoMotivoPrincipal: String = "",
-    val resultadoMotivoDetalle: String = ""
+    val resultadoMotivoDetalle: String = "",
+    val tiempoTranscurrido: Int = 0, // ◄ Para ver el tiempo en el popup
+    val direccionesPaqueteria: List<Pair<String, String>> = emptyList(), // ◄ Lista interna de (calle, numero)
+    val ultimoMensajeHistorial: String = "" // ◄ Para ver de forma visual qué datos se ingresaron con anterioridad
 )
 
 @Serializable

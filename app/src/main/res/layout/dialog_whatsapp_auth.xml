@@ -2,9 +2,10 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:background="@color/cardview_light_background"
+    android:gravity="center_horizontal"
     android:orientation="vertical"
-    android:padding="24dp"
-    android:gravity="center_horizontal">
+    android:padding="24dp">
 
     <!-- Título de Acción -->
     <TextView
@@ -22,32 +23,32 @@
         android:id="@+id/tvDialogMensaje"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Solicitando la autorización para el ingreso..."
-        android:textSize="16sp"
+        android:layout_marginBottom="16dp"
         android:gravity="center"
+        android:text="Solicitando la autorización para el ingreso..."
         android:textColor="#555555"
-        android:layout_marginBottom="16dp"/>
+        android:textSize="16sp" />
 
     <!-- Contador de Segundos Transcurridos (dialog.after) -->
     <TextView
         android:id="@+id/tvDialogContador"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginBottom="24dp"
         android:text="segundos transcurridos 0 seg"
-        android:textSize="15sp"
         android:textColor="#0288D1"
-        android:textStyle="bold"
-        android:layout_marginBottom="24dp"/>
+        android:textSize="15sp"
+        android:textStyle="bold" />
 
     <!-- Botón de Escape del Guardia -->
     <Button
         android:id="@+id/btnDialogCancelar"
+        style="@style/Widget.MaterialComponents.Button"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Cerrar/Cancelar"
         android:backgroundTint="#757575"
+        android:text="Cerrar/Cancelar"
         android:textColor="#FFFFFF"
-        android:textSize="16sp"
-        style="@style/Widget.MaterialComponents.Button"/>
+        android:textSize="16sp" />
 
 </LinearLayout>

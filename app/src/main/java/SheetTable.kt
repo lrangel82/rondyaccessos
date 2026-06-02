@@ -22,7 +22,7 @@ enum class SheetTable(
     VEHICULOS("AutosRegistrados", "VEHICLE", "A:C", listOf("Placas","Calle","Numero","Marca","Modelo","Color","Tag","Tag2","userid")),
     TAGS("AutosRegistrados", "TAGS", "A:H", listOf("Placas","Calle","Numero","Marca","Modelo","Color","Tag","Tag2","userid")),
     PERMISOS("", "PERMISOS", "A:N", listOf("Marca temporal","Calle","Numero de casa","Nombre de quien solicita el permiso",	"Correo electrónico", "Permiso para:","Tipo Permiso (nota: si es renta o venta del inmueble indique en la descripcion el telefono a comunicarse)",	"Fecha Inicio del permiso",	"Fecha Fin del permiso","Descripción y/o trabajos a realizar	Nombre de la(s) persona(s) a Ingresar",	"Aprobado","Motivo Denegado","Procesado por ROBOT")),
-    DIRECCIONES("Direcciones", "directions", "A:D", listOf("calle", "numero", "latitud", "longitud","ext")),  //
+    DIRECCIONES("DomicilioUbicacion", "directions", "A:F", listOf("calle", "numero", "latitud", "longitud","ext","fijo")),  //
     AUTOS_REGISTRADOS("AutosRegistrados", "autosRegistrados", "A:I", listOf("Placas","Calle","Numero","Marca","Modelo","Color","Tag","Tag2","userid")), //placa,calle,numero,marca,modelo,color,tag
     RESIDENTES_UNIDAD("ResidentesUnidad", "residentesUnidad", "A:Q", listOf("userid","clave","calle","numero","tipo","nombre","telefono","email","celular","notas","ciudad","estado","fecha_updated_condovive","fecha_updated_app","es_nuevo","es_actualizado","es_eliminado")),
     ALARMAS_RONDIN("AlarmasRondin","alarmasRondin","A:B", listOf("Hora","Nombre")),
@@ -82,6 +82,7 @@ enum class CaptureStep {
     CONFRMAR_DOMICILIO,
     CAPTURA_NOMBRE,
     CAPTURA_PLACA,
-    PROCESANDO_AUTORIZACION
+    PROCESANDO_AUTORIZACION,
+    PREGUNTA_OTRA_DIRECCION
 }
 
