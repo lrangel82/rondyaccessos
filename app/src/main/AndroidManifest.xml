@@ -36,6 +36,11 @@
             android:exported="false"
             android:theme="@style/Theme.MaterialComponents.NoActionBar"/>
         <activity
+            android:name=".vehicular.DescubrimientoCamarasActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
+        <activity
             android:name=".ui.LimitedFeatureActivity"
             android:exported="false" />
         <activity

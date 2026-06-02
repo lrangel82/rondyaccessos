@@ -111,6 +111,8 @@ class MySettings(private val context: Context) {
             val TWILIO_TOKEN                    = props.getProperty("tw_token")
             val TWILIO_URL_FLOW                 = props.getProperty("tw_urlflow_llamada")
             val TWILIO_TELEFONO                 = props.getProperty("tw_telefono")
+            val RSTP_USER                       = props.getProperty("rstp_user")
+            val RSTP_PASS                       = props.getProperty("rstp_pass")
 
             putString("APP_NAME", APP_NAME)
             putString("POSTFIX_SHEETNAME", POSTFIX_SHEETNAME)
@@ -143,6 +145,8 @@ class MySettings(private val context: Context) {
             putString("TWILIO_TOKEN", TWILIO_TOKEN)
             putString("TWILIO_URL_FLOW", TWILIO_URL_FLOW)
             putString("TWILIO_TELEFONO", TWILIO_TELEFONO)
+            putString("RSTP_USER",RSTP_USER)
+            putString("RSTP_PASS",RSTP_PASS)
 
 
 
@@ -203,6 +207,8 @@ class MySettings(private val context: Context) {
             putString("TWILIO_TOKEN", "")
             putString("TWILIO_URL_FLOW", "")
             putString("TWILIO_TELEFONO", "")
+            putString("RSTP_USER","")
+            putString("RSTP_PASS","")
 
             //CLEAN CACHE
             SheetTable.values().forEach{table ->

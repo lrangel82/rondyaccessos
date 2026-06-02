@@ -63,7 +63,7 @@ class IngresoVehicularViewModel(
     var todosLosDomiciliosCache: List<List<Any>> = emptyList() // calle, numero, clave
 
     // Control parameters loaded dynamically from your S3 configuration
-    var urlCamaraPlacasRtsp: String = "rtsp://luisrangel:mevale14@172.16.1.67:554/stream2"
+    var urlCamaraPlacasRtsp: String = "rtsp://admin:admin123@172.16.1.67:554/stream2"
     var urlCamaraQrRtspFallback: String = ""
     var usarCamaraLocalParaQr: Boolean = true
 
@@ -105,11 +105,23 @@ class IngresoVehicularViewModel(
 //            listOf("Paseo Bugambilias", "12", "BUG12")
 //        )
         todosLosDomiciliosCache = dataRaw.getDomiciliosUbicacion()
+        val urlGuardadaEnCache = mySettings.getString("URL_CAMARA_PLACAS_PREFERIDA", "")
+        if (urlGuardadaEnCache.isNotEmpty()) {
+            urlCamaraPlacasRtsp = urlGuardadaEnCache
+            Log.d("ConfigCamara", "Cargando cámara de placas preferida desde caché: $urlCamaraPlacasRtsp")
+        } else {
+            // Valor de respaldo por defecto de tu script original si el caché está limpio
+            urlCamaraPlacasRtsp = "rtsp://admin:admin123@172.16.1.67:554/stream2"
+        }
     }
 
     fun reiniciarAsistenteCompleto() {
         timerJob?.cancel()
         whatsappPollingJob?.cancel()
+
+        flujoResuelto.set(false)
+        socketEnviadoACaseta.set(false)
+
         _uiState.update {
             IngresoVehicularUiState(
                 currentStep = CaptureStep.SELECCION_MOTIVO,
@@ -194,29 +206,199 @@ class IngresoVehicularViewModel(
         _camaraQrFalla.value = true
     }
     fun procesarContenidoQrDetectado(rawText: String) {
-        if (qrCooldownActivo) return
+        if (qrCooldownActivo || flujoResuelto.get()) return
 
-        // Validar el prefijo estricto de tu condominio (Mapeado de Python Parte 7)
-        if (rawText.startsWith("ginn")) {
-            val payloadLimpio = rawText.substring(4) // Eliminar el prefijo "ginn"
+        // 1. FILTRO: Validación estricta del prefijo de seguridad "ginn"
+        if (!rawText.startsWith("ginn")) {
             qrCooldownActivo = true
+            // 🔴 POP-UP ROJO: QR Inválido (No pertenece a la aplicación)
+            _whatsappStatus.value = WhatsappAuthStatus.Error("Código QR Inválido. No pertenece al sistema del condominio.")
+            _uiState.update { it.copy(currentStep = CaptureStep.PROCESANDO_AUTORIZACION) }
 
+            viewModelScope.launch(Dispatchers.Main) {
+                delay(2000) // Sostiene el pop-up por 2 segundos exactos
+                _whatsappStatus.value = WhatsappAuthStatus.Idle
+                reiniciarAsistenteCompleto()
+                qrCooldownActivo = false
+            }
+            return
+        }
+        // 2. DESENPAQUETADO: Limpieza del payload
+        val payloadLimpio = rawText.substring(4).trim()
+        qrCooldownActivo = true
+        _uiState.update { current ->
+            current.copy(
+                qrData = payloadLimpio,
+                lblTopMensaje = "Leyendo código QR... Verificando credenciales.",
+                currentStep = CaptureStep.PROCESANDO_AUTORIZACION
+            )
+        }
+
+        viewModelScope.launch(Dispatchers.Default) {
+            // 3. CONSULTA: Buscar el QR en la capa de persistencia local indexada
+            val registroQrList: List<Any> = dataRaw.getQR(payloadLimpio)
+
+            // 4. FILTRO: Verificar existencia en base de datos (Requiere mínimo 8 columnas indexadas)
+            if (registroQrList.isEmpty() || registroQrList.size < 7) {
+                withContext(Dispatchers.Main) {
+                    // 🟡 POP-UP AMARILLO: QR Inexistente (Se usa Info para representar el Warning visual)
+                    _whatsappStatus.value = WhatsappAuthStatus.Error("QR inexistente en el sistema.")
+                    delay(3000)
+                    reiniciarAsistenteCompleto()
+                    qrCooldownActivo = false
+                }
+                return@launch
+            }
+
+            // Mapeo posicional estricto del registro según tu layout:
+            // [0: md5, 1: calle, 2: numero, 3: nombre, 4: placas, 5: telefono_creador, 6: fecha_creado, 7: vencido]
+            val calleQr           = registroQrList[1].toString()
+            val numeroQr          = registroQrList[2].toString()
+            val nombreInvitadoQr  = registroQrList[3].toString()
+            val placasQr          = registroQrList[4].toString()
+            val telefonoCreadorQr = registroQrList[5].toString()
+            val fechaCreadoStr    = registroQrList[6].toString() // Ejemplo: "2026-06-02T01:02:33.236622"
+            val estaVencidoFlag   = registroQrList[7].toString()
+
+            // 5. FILTRO: Verificar si ya fue marcado previamente como quemado/vencido ("1")
+            if (estaVencidoFlag == "1") {
+                withContext(Dispatchers.Main) {
+                    // 🟡 POP-UP AMARILLO: QR Vencido por uso previo
+                    _whatsappStatus.value = WhatsappAuthStatus.Alerta("El código QR presentado ya ha sido utilizado anteriormente.")
+                    delay(3000)
+                    reiniciarAsistenteCompleto()
+                    qrCooldownActivo = false
+                }
+                return@launch
+            }
+
+            // 6. FILTRO: Validación cronológica de 72 horas máximas de ciclo de vida
+            var esMayor72Horas = false
+            try {
+                // Reemplaza la 'T' para homologar parseos ISO nativos de Java 8+
+                val limpiaFecha = fechaCreadoStr.replace(" ", "T")
+                // Si no contiene indicador de zona horaria Z, se concatena para asegurar compatibilidad UTC
+                val formatoIso = if (!limpiaFecha.endsWith("Z")) limpiaFecha + "Z" else limpiaFecha
+
+                val fechaCreacionInstant = java.time.Instant.parse(formatoIso)
+                val ahoraInstant = java.time.Instant.now()
+
+                // Evalúa si la fecha actual es posterior al límite de vida (Creación + 72 horas)
+                if (fechaCreacionInstant.plus(72, java.time.temporal.ChronoUnit.HOURS).isBefore(ahoraInstant)) {
+                    esMayor72Horas = true
+                }
+            } catch (e: Exception) {
+                Log.e("ValidacionQR", "Error al procesar la estampa de tiempo UTC del QR: ${e.message}")
+            }
+
+            if (esMayor72Horas) {
+                // Quemamos el token de inmediato en la base de datos local
+                dataRaw.vencerQR(payloadLimpio)
+                withContext(Dispatchers.Main) {
+                    // 🟡 POP-UP AMARILLO: Expiración de ventana de tiempo
+                    _whatsappStatus.value = WhatsappAuthStatus.Alerta("QR de más de 72 hrs ya no es válido.")
+                    delay(3500)
+                    reiniciarAsistenteCompleto()
+                    qrCooldownActivo = false
+                }
+                return@launch
+            }
+
+            // 7. EVALUACIÓN: Regla del Caso Especial de Amenidades ("TERRAZA" / Áreas Comunes)
+            val esCasoTerraza = calleQr.uppercase().contains("TERRAZA")
+            var esMismoDia = true
+
+            if (esCasoTerraza) {
+                try {
+                    // Extrae solo la porción de fecha "YYYY-MM-DD"
+                    val diaCreado = fechaCreadoStr.split("T")[0]
+                    val diaActual = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+
+                    if (diaCreado != diaActual) {
+                        esMismoDia = false
+                    }
+                } catch (e: Exception) {
+                    esMismoDia = false
+                }
+
+                if (!esMismoDia) {
+                    // Si es otro día, procedemos a vencerlo formalmente
+                    dataRaw.vencerQR(payloadLimpio)
+                    withContext(Dispatchers.Main) {
+                        _whatsappStatus.value = WhatsappAuthStatus.Alerta("QR de Terraza caducado. Solo era válido para el día de su creación.")
+                        delay(3500)
+                        reiniciarAsistenteCompleto()
+                        qrCooldownActivo = false
+                    }
+                    return@launch
+                }
+            }
+
+            // 8. CIERRE DE ACCESO Y QUEMA DE TOKEN (Si pasa todos los filtros de seguridad)
+            if (!flujoResuelto.compareAndSet(false, true)) return@launch
+            timerJob?.cancel()
+
+            // Si NO es caso terraza (o es el mismo día de terraza pero requiere protección de un solo uso), se quema el QR
+            if (!esCasoTerraza) {
+                dataRaw.vencerQR(payloadLimpio)
+            }
+            // Re-inyectamos los datos estructurados del QR directo al UI State para la transacción
             _uiState.update { current ->
                 current.copy(
-                    qrData = payloadLimpio,
-                    lblTopMensaje = "¡Código QR Válido Detectado! Procesando autorización...",
-                    currentStep = CaptureStep.PROCESANDO_AUTORIZACION
+                    calleInput = calleQr,
+                    numeroInput = numeroQr,
+                    conductorInput = nombreInvitadoQr,
+                    placaInput = if (placasQr.isNotEmpty()) placasQr else "SIN PLACA REG",
+                    tipoInput = if (esCasoTerraza) "Invitado Terraza" else "Invitado QR",
+                    descripcionInput = "Acceso validado exitosamente vía Código QR Encriptado MD5: $payloadLimpio",
+                    status = "AUTORIZADO"
                 )
             }
 
-            // TODO: Aquí puedes evaluar el payload si contiene "TERRAZA" o "VISITANTE"
-            // y saltar automáticamente los pasos del formulario.
+            // 9. PERSISTENCIA: Ejecución del guardado transaccional final unificado
+            withContext(Dispatchers.Main) {
+                // 🟢 POP-UP VERDE: Acceso Autorizado con Destino Explicitado
+                _whatsappStatus.value = WhatsappAuthStatus.Autorizado
+                _uiState.update { it.copy(lblTopMensaje = "ACCESO AUTORIZADO - BIENVENIDO") }
 
-            // Bloqueo de bucle por 10 segundos (Equivalente al after(10000) de tu script Python)
-            viewModelScope.launch {
-                delay(10000)
+                geminiVoiceAssistant.forzarLocucionPorAltavoz("Código QR aceptado. Diríjase a la calle $calleQr número $numeroQr. Bienvenido.")
+
+                // Disparamos la lógica de almacenamiento e imágenes
+                ejecutarGuardadoTransaccionalFinal(_uiState.value)
+
+                // 10. NOTIFICACIÓN COMPLEMENTARIA: Caso especial Terraza avisa al creador por WhatsApp
+                if (esCasoTerraza && telefonoCreadorQr.isNotEmpty()) {
+                    val telefonoDestinoNotif = listOf(telefonoCreadorQr.telefonoParaTwilio())
+
+                    // Creamos un registro bitácora temporal solo para alimentar el payload del mánager de mensajería
+                    val accesoDummy = AccesoBitacora(
+                        fechaCreado = fechaCreadoStr, fechaIngreso = fechaCreadoStr,
+                        placa = _uiState.value.placaInput, calle = calleQr, numero = numeroQr,
+                        tipo = "Invitado Terraza (Multi-uso Diario)", conductor = nombreInvitadoQr,
+                        descripcion = "Tu invitado ha ingresado usando el QR de la Terraza.",
+                        foto1Url = "", foto2Url = "", qrData = payloadLimpio, fechaSalida = "", status = "AUTORIZADO"
+                    )
+
+                    // Hilo secundario IO dedicado para despachar la alerta sin congelar la UI de salida de la pantalla
+                    viewModelScope.launch(Dispatchers.IO) {
+                        try {
+                            WhatsAppNotificationManager.despacharNotificacionesDomicilio(
+                                telefonos = telefonoDestinoNotif,
+                                acceso = accesoDummy,
+                                mySettings = mySettings
+                            )
+                        } catch (e: Exception) {
+                            Log.e("NotifTerraza", "Fallo al enviar confirmación de uso QR al copropietario: ${e.message}")
+                        }
+                    }
+                }
+
+                // Mantiene el banner verde de éxito en la pantalla física del guardia por 4 segundos antes de liberar la fila
+                delay(4000)
+                reiniciarAsistenteCompleto()
                 qrCooldownActivo = false
             }
+
         }
     }
 
@@ -228,6 +410,12 @@ class IngresoVehicularViewModel(
         val mUpper = motivo.uppercase()
         if (mUpper.contains("BASURA") || mUpper.contains("POLICIA") || mUpper.contains("AMBULANCIA")) {
             // Caso Especial: Excepción Inmediata sin Dirección
+            if (!flujoResuelto.compareAndSet(false, true)) return
+
+            // Detenemos inmediatamente los timers y la escucha activa
+            timerJob?.cancel()
+            orquestadorJob?.cancel()
+
             _uiState.update {
                 it.copy(
                     tipoInput = motivo,
@@ -241,6 +429,8 @@ class IngresoVehicularViewModel(
             viewModelScope.launch(Dispatchers.Main) {
                 // Guardamos directo sin pedir confirmaciones
                 ejecutarGuardadoTransaccionalFinal(_uiState.value)
+                delay(1000)
+                reiniciarAsistenteCompleto()
             }
         } else {
             geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme la calle de destino, porfavor.")
@@ -377,12 +567,19 @@ class IngresoVehicularViewModel(
 
         if (esPaqueteriaMultidomicilio) {
             // CASO ESPECIAL: Es un recorrido. No se pide autorización, se procesan ráfagas de inserción
+            if (!flujoResuelto.compareAndSet(false, true)) return
+            timerJob?.cancel()
+
             viewModelScope.launch(Dispatchers.Default) {
                 val chofer = _uiState.value.conductorInput
                 val matricula = _uiState.value.placaInput
                 val tipoReg = _uiState.value.tipoInput
+                val direccionesAProcesar = _uiState.value.direccionesPaqueteria.toList()
 
-                _uiState.value.direccionesPaqueteria.forEach { (calle, numero) ->
+                // Limpiamos la lista del estado de inmediato para que quede huérfana de ejecuciones extras
+                _uiState.update { it.copy(direccionesPaqueteria = emptyList()) }
+
+                direccionesAProcesar.forEach { (calle, numero) ->
                     val estadoIndividual = _uiState.value.copy(
                         calleInput = calle,
                         numeroInput = numero,
@@ -1221,6 +1418,10 @@ class IngresoVehicularViewModel(
                     // Validación Exprés de Servicios Públicos / Emergencia vía Voz
                     val mUpper = matchMotivo.uppercase()
                     if (mUpper.contains("BASURA") || mUpper.contains("POLICIA") || mUpper.contains("AMBULANCIA")) {
+                        if (!flujoResuelto.compareAndSet(false, true)) return@launch
+
+                        timerJob?.cancel()
+
                         _uiState.update {
                             it.copy(
                                 tipoInput = matchMotivo,
@@ -1233,6 +1434,8 @@ class IngresoVehicularViewModel(
                         }
                         withContext(Dispatchers.Main) {
                             ejecutarGuardadoTransaccionalFinal(_uiState.value)
+                            delay(1000)
+                            reiniciarAsistenteCompleto()
                         }
                         return@launch // Terminación inmediata del flujo
                     }

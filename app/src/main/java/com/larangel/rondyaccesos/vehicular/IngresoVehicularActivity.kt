@@ -94,6 +94,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
     private var cameraProvider: ProcessCameraProvider? = null
     private var cameraExecutor: ExecutorService? = Executors.newSingleThreadExecutor()
     private val qrScannerClient = BarcodeScanning.getClient()
+    private var lensFacingSeleccionado = CameraSelector.LENS_FACING_FRONT // ◄ Inicia en Frontal por defecto
     private val solicitarPermisoCamaraLanzador = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { permisoConcedido ->
@@ -204,6 +205,33 @@ class IngresoVehicularActivity : AppCompatActivity() {
             startActivity(intentConfig)
 
             finish() // Destruir esta Activity para limpiar la RAM por completo
+        }
+
+        binding.btnSwitchCamera.setOnClickListener {
+            // Conmutamos de forma atómica el lente actual
+            lensFacingSeleccionado = if (lensFacingSeleccionado == CameraSelector.LENS_FACING_FRONT) {
+                CameraSelector.LENS_FACING_BACK // Pasa a Trasera
+            } else {
+                CameraSelector.LENS_FACING_FRONT // Regresa a Frontal
+            }
+
+            Toast.makeText(this, "Cambiando de cámara...", Toast.LENGTH_SHORT).show()
+
+            // Forzamos el reinicio y re-vinculación de CameraX con el nuevo lente asignado
+            cameraProvider?.let { provider ->
+                binding.cameraXQrPreview.post {
+                    configurarEIniciarCameraXFrontal() // Re-ejecuta la configuración del hardware
+                }
+            }
+        }
+
+        binding.btnConfigurarCamaraPlacas.setOnClickListener {
+            // Apagamos preventivamente el stream actual para liberar la memoria de LibVLC
+            apagarStreamVideoRtspPlacas()
+
+            // Abrimos la pantalla de escaneo y descubrimiento LAN
+            val intentScanner = Intent(this, DescubrimientoCamarasActivity::class.java)
+            startActivity(intentScanner)
         }
     }
 
@@ -581,8 +609,16 @@ class IngresoVehicularActivity : AppCompatActivity() {
     private fun inicializarContenedorVLC() {
         val args = ArrayList<String>().apply {
             add("--rtsp-tcp") // Force RTSP over TCP transport layer to avoid dropped frames
-            add("--no-drop-late-frames")
-            add("--no-skip-frames")
+            add("--network-caching=300")       // Reduce el búfer de red a 300ms para tener video en tiempo real (Mínima latencia)
+            add("--clock-jitter=0")            // Deshabilita el control de jitter para evitar retrasos artificiales
+            add("--clock-synchro=0")
+
+            // 2. Optimización de Desempeño y CPU
+            add("--drop-late-frames")          // Descarta frames atrasados inmediatamente si el procesador se satura
+            add("--skip-frames")               // Permite saltar cuadros para mantener el flujo síncrono con el lector OCR
+            add("--avcodec-hw=any")            // Fuerza la decodificación por hardware nativa del procesador del dispositivo
+            add("--avcodec-skiploopfilter=4")  // Reduce la calidad de postprocesado del códec para liberar CPU al 100%
+
             add("--vout=android_display")   // Utilizar el motor de renderizado estándar de Android
             add("--android-display-chroma=RV32") // Forzar croma de color estándar de 32 bits compatible con layouts
             add("--video-wallpaper")        // Deshabilitar el modo exclusivo de pantalla completa de hardware
@@ -895,28 +931,28 @@ class IngresoVehicularActivity : AppCompatActivity() {
 
     // --- QR
     private fun configurarEIniciarCameraXFrontal() {
-    // 1. Obtener el proveedor de la cámara de forma explícita en el hilo principal
-    val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+        // 1. Obtener el proveedor de la cámara de forma explícita en el hilo principal
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
 
-    cameraProviderFuture.addListener({
-        try {
-            // Asegurar que la Activity siga viva antes de tocar el hardware
-            if (isFinishing || isDestroyed) return@addListener
+        cameraProviderFuture.addListener({
+            try {
+                // Asegurar que la Activity siga viva antes de tocar el hardware
+                if (isFinishing || isDestroyed) return@addListener
 
-            cameraProvider = cameraProviderFuture.get()
+                cameraProvider = cameraProviderFuture.get()
 
-            // 2. Desvincular de forma agresiva cualquier caso de uso previo o huérfano
-            cameraProvider?.unbindAll()
+                // 2. Desvincular de forma agresiva cualquier caso de uso previo o huérfano
+                cameraProvider?.unbindAll()
 
-            // 3. Invocar la conexión secuencial blindada de texturas
-            conectarCasosDeUsoDeCamaraX()
+                // 3. Invocar la conexión secuencial blindada de texturas
+                conectarCasosDeUsoDeCamaraX()
 
-        } catch (e: Exception) {
-            Log.e("CameraXHardware", "Fallo crítico al inicializar el proveedor: ${e.message}")
-            viewModel.reportarFallaConexionQr()
-        }
-    }, ContextCompat.getMainExecutor(this))
-}
+            } catch (e: Exception) {
+                Log.e("CameraXHardware", "Fallo crítico al inicializar el proveedor: ${e.message}")
+                viewModel.reportarFallaConexionQr()
+            }
+        }, ContextCompat.getMainExecutor(this))
+    }
 
     private fun conectarCasosDeUsoDeCamaraX() {
         val provider = cameraProvider ?: return
@@ -939,15 +975,16 @@ class IngresoVehicularActivity : AppCompatActivity() {
         // 4. Seleccionar rigurosamente la cámara FRONTAL
         val cameraSelector = try {
             CameraSelector.Builder()
-                .requireLensFacing(CameraSelector.LENS_FACING_FRONT)
+                .requireLensFacing(lensFacingSeleccionado)
                 .build()
         } catch (e: Exception) {
             CameraSelector.DEFAULT_FRONT_CAMERA
         }
 
         try {
-            // 🚀 MEJORA 3: Bindeamos los casos de uso AL MISMO TIEMPO al ciclo de vida de la Activity
-            // Pasar el previewUseCase AQUÍ es lo que despierta el flujo de datos del lente
+            // Desvincular de forma preventiva para que no se queden bloqueados flujos de datos anteriores
+            provider.unbindAll()
+
             val camera = provider.bindToLifecycle(
                 this as androidx.lifecycle.LifecycleOwner,
                 cameraSelector,
@@ -1056,6 +1093,15 @@ class IngresoVehicularActivity : AppCompatActivity() {
                                 titulo = "Info",
                                 mensajePersonalizado = status.msg,
                                 colorHex = "#27CCF5",  //Azul
+                                mostrarBoton = false // Permite cerrar el diálogo si la API de Render cae
+                            )
+                        }
+
+                        is WhatsappAuthStatus.Alerta -> {
+                            actualizarEstadoEstiloDialogo(
+                                titulo = "Alerta",
+                                mensajePersonalizado = status.msg,
+                                colorHex = "#FBC02D",  //Amarillo
                                 mostrarBoton = false // Permite cerrar el diálogo si la API de Render cae
                             )
                         }

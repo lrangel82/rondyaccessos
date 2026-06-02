@@ -92,6 +92,7 @@ sealed class WhatsappAuthStatus {
     object Autorizado : WhatsappAuthStatus()
     object Denegado : WhatsappAuthStatus()
     object Timeout : WhatsappAuthStatus()
+    data class Alerta(val msg:String): WhatsappAuthStatus()
     data class Info(val msg:String): WhatsappAuthStatus()
     data class Error(val msg: String) : WhatsappAuthStatus()
 }

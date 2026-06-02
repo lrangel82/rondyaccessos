@@ -1693,6 +1693,91 @@ class DataRawRondin(
         return
     }
 
+    //QRs
+    fun getQRs(forceLoad: Boolean = false, createIfNotExist: Boolean = false): List<List<Any>> = runBlocking {
+        // Usamos el Enum de EXCEPCIONES y el SmartCache genérico
+        getSmartCache(SheetTable.QRS,forceLoad) {
+            val sheetName = SheetTable.QRS.sheetName
+            val range = SheetTable.QRS.range
+            val allRows = mutableListOf<List<Any>>()
+
+            // Obtenemos la lista de IDs de Spreadsheets desde MySettings
+            val spreadsheetIds = mySettings.getString("REGISTRO_CARROS_SPREADSHEET_ID","") //?: emptyList<String>()
+            if (spreadsheetIds.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
+
+            //for (id in spreadsheetIds) {
+            val idsheet = getSheetIdByName(spreadsheetIds,sheetName)
+            if (idsheet == null && createIfNotExist)
+                createWorkSheetNew(spreadsheetIds,SheetTable.QRS)
+
+            // Consultamos el rango A:N (desde Marca temporal hasta Procesado por ROBOT)
+            val response = sheetsService.spreadsheets().values()
+                .get(spreadsheetIds, "${sheetName}!${range}")
+                .execute()
+
+            // Omitimos la primera fila (encabezados) de cada hoja
+            val rows = response.getValues()?.drop(1) ?: emptyList()
+            allRows.addAll(rows)
+
+            //}
+
+            // Retornamos la lista consolidada al SmartCache
+            allRows
+        }
+    }
+    fun getQR(idQR: String): List<Any>{
+        val rows = getQRs()
+        var result = mutableListOf<Any>()
+        run loop@{
+            rows.forEach { row ->
+                val _md5id = row[1].toString()
+                if (_md5id == idQR ) {
+                    //Concidencia exacta
+                    result = row as MutableList<Any>
+                    return@loop
+                }
+            }
+        }
+        return result as List<Any>
+    }
+    fun vencerQR(idQR: String){
+        val table = SheetTable.QRS
+        val state = tableStates[table] ?: return
+
+        // 1. Aseguramos que la RAM tenga datos (Carga desde RAM -> Disco -> Red)
+        if (state.cache == null) runBlocking { getQRs() }
+
+        val currentCache = state.cache?.toMutableList() ?: mutableListOf()
+        var indexFind = -1
+
+        // 2. Búsqueda por ID
+        var rowData: MutableList<Any> = mutableListOf()
+        currentCache.forEachIndexed { index, row ->
+            if (row.size >= 4 &&
+                row[0].toString() == idQR) {
+                indexFind = index
+                rowData=row.toMutableList()
+                return@forEachIndexed
+            }
+        }
+
+        //Vencer
+        if (indexFind >= 0) {
+            rowData[7] = 1
+            currentCache[indexFind] = rowData
+            state.cache = currentCache
+
+            // Persistir en disco para acceso offline inmediato
+            mySettings.saveList("${table.cacheKey}_CACHE", currentCache as List<List<String>>)
+            mySettings.saveLong(table.timestampKey, System.currentTimeMillis())
+
+            // Sincronizar Update (index + 2 por el encabezado de Google Sheets)
+            sync(table, Operation.UPDATE, data = rowData as List<String>, index = indexFind + 2)
+        }
+
+        return
+    }
+
     // --- PARSEADORES DE FECHA TOLERANTES (Tu lógica de la Parte 1) ---
     fun parseLenientDateTime(dateTimeString: String): LocalDateTime {
         val formats = listOf("d/MM/yyyy H:mm:ss", "yyyy-MM-dd HH:mm:ss", "dd/MM/yyyy HH:mm:ss")

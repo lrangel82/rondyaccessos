@@ -34,7 +34,8 @@ enum class SheetTable(
     DOMICILIOS_MOROSOS("saldos", "DomiciliosMorosos", "A:E", listOf("ID","Calle","Numero","Deuda","Fecha")),
     TERRAZA_RESERVAS("CasaClub", "terrazaReservas", "A:E", listOf("fecha","contador_ingresos","direccion_responsable","telefono_responsable","qr_data")),    // Coto/Terraza, Fecha, Hora, Evento, QrCode
     PLACAS_PROHIBIDAS("PlacasProhibidas", "placasProhibidas", "A:E", listOf("ID","Fecha_Creado","Placa","Razon_Bloqueo","Coto")),
-    TELEFONOS_WHATSAPP("telefonos", "WhatsappTelefonos", "A:E", listOf("calle","numero","telefono","coto","nombre"));
+    TELEFONOS_WHATSAPP("telefonos", "WhatsappTelefonos", "A:E", listOf("calle","numero","telefono","coto","nombre")),
+    QRS("qrs","QRsGenerados","A:H", listOf("md5","calle","numero","nombre","placas","telefono_creador","fecha_creado","vencido"));
 
     val saveKey get() = "CACHE_forSave_$cacheKey"
     val updateKey get() = "CACHE_forUpdate_$cacheKey"

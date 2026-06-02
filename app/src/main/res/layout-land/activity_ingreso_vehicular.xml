@@ -109,6 +109,21 @@
                 android:background="#000000"
                 android:visibility="visible" />
 
+            <ImageButton
+                android:id="@+id/btnConfigurarCamaraPlacas"
+                android:layout_width="45dp"
+                android:layout_height="45dp"
+                android:layout_alignParentTop="true"
+                android:layout_alignParentEnd="true"
+                android:layout_marginTop="0dp"
+                android:layout_marginEnd="0dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Escanear y Seleccionar Cámara"
+                android:padding="8dp"
+                android:scaleType="centerInside"
+                android:src="@android:drawable/ic_menu_manage"
+                app:tint="#FFFFFF" />
+
             <!-- Fallback overlay configuration view if connection drops -->
             <LinearLayout
                 android:id="@+id/layoutFixCamaraPlaca"
@@ -163,6 +178,56 @@
                 android:layout_height="match_parent"
                 android:background="#FF0000"
                 app:implementationMode="compatible" />
+
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_centerInParent="true">
+
+                <!-- Recuadro guía blanco con borde -->
+                <View
+                    android:id="@+id/qrGuideFrame"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:layout_centerInParent="true"
+                    android:layout_margin="20dp"
+                    android:background="@drawable/qr_frame_border"
+                    android:scaleX="0.8"
+                    android:scaleY="0.8" />
+
+                <!-- Pequeño texto explicativo acoplado a la esquina inferior derecha del recuadro del 80% -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignBottom="@id/qrGuideFrame"
+                    android:layout_alignEnd="@id/qrGuideFrame"
+                    android:layout_marginEnd="35dp"
+                    android:layout_marginBottom="25dp"
+                    android:text="QR"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:shadowColor="#000000"
+                    android:shadowDx="2"
+                    android:shadowDy="2"
+                    android:shadowRadius="2" />
+            </RelativeLayout>
+
+            <!-- 🌟 NUEVO: BOTÓN FLOTANTE PARA CAMBIAR CÁMARA (FRONTAL / POSTERIOR) -->
+            <ImageButton
+                android:id="@+id/btnSwitchCamera"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_alignParentTop="true"
+                android:layout_alignParentEnd="true"
+                android:layout_marginTop="0dp"
+                android:layout_marginEnd="0dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Cambiar Cámara"
+                android:padding="1dp"
+                android:scaleType="centerInside"
+                android:src="@android:drawable/ic_menu_camera"
+                app:tint="#FFFFFF" />
 
             <!-- Alternative LibVLC layout if the user configures an IP camera instead of local hardware -->
             <org.videolan.libvlc.util.VLCVideoLayout
@@ -338,7 +403,7 @@
             android:background="?attr/popupMenuBackground"
             android:gravity="center"
             android:orientation="vertical"
-            > <!-- Managed dynamically in code -->
+            android:visibility="visible"> <!-- Managed dynamically in code -->
 
             <TextView
                 android:id="@+id/tvEstatusGrande"

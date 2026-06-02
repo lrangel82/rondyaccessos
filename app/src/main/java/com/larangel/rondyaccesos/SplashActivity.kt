@@ -138,6 +138,9 @@ class SplashActivity : AppCompatActivity() {
                     val morosos=dataRaw.getMorosos(forceLoad = true, createIfNotExist = true)
                     txtStatus.text = txtStatus.text.toString() + "\n Morosos:${morosos.count()}"
                     delay(500)
+                    val qrs=dataRaw.getMorosos(forceLoad = true, createIfNotExist = true)
+                    txtStatus.text = txtStatus.text.toString() + "\n QRs:${qrs.count()}"
+                    delay(500)
                 } else {
                     txtStatus.text = "Licencia Inválida. Iniciando con funciones restringidas..."
                     delay(2000)
