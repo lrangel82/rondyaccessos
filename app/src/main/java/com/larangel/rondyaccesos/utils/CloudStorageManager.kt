@@ -57,7 +57,7 @@ object CloudStorageManager {
             client.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
                     // Endpoint returns JSON or direct URL path string
-                    return@withContext response.body?.string() ?: "internal/upload_error.jpg"
+                    return@withContext bucketUrl ?: "internal/upload_error.jpg"
                 } else {
                     Log.e("CloudStorage", "Upload failed with HTTP code: ${response.code}")
                     return@withContext "internal/http_error_${response.code}.jpg"

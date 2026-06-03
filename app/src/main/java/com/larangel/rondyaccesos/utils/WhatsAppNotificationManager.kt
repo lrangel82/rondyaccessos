@@ -16,7 +16,10 @@ import java.net.URL
 
 object WhatsAppNotificationManager {
     private val client = OkHttpClient()
-    private val jsonConfig = Json { ignoreUnknownKeys = true }
+    private val jsonConfig = Json {
+        encodeDefaults = true
+        ignoreUnknownKeys = true
+    }
     private val mediaTypeJson = "application/json".toMediaType()
 
     /**
@@ -118,7 +121,11 @@ object WhatsAppNotificationManager {
                     .build()
 
                 client.newCall(request).execute().use { response ->
+                    val responseBody = response.body?.string()
                     Log.d("WhatsAppNotify", "Template entry response for $number: ${response.code}")
+                    if (!response.isSuccessful) {
+                        Log.e("WhatsAppNotify", "Error body: $responseBody")
+                    }
                 }
             } catch (e: Exception) {
                 Log.e("WhatsAppNotify", "Error firing admission template to $number", e)

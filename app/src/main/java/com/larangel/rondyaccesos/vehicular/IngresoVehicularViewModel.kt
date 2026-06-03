@@ -74,6 +74,9 @@ class IngresoVehicularViewModel(
     private val _camaraQrFalla = MutableStateFlow(false)
     val camaraQrFalla: StateFlow<Boolean> = _camaraQrFalla.asStateFlow()
 
+    private var urlFoto1: String=""
+    private var urlFoto2: String=""
+
     // Flag controlling the activation of the OCR processing task loop
     private val _vlcStreamActive = MutableStateFlow(false)
     val vlcStreamActive: StateFlow<Boolean> = _vlcStreamActive.asStateFlow()
@@ -121,6 +124,9 @@ class IngresoVehicularViewModel(
 
         flujoResuelto.set(false)
         socketEnviadoACaseta.set(false)
+
+        //Close whatsappAlert
+        _whatsappStatus.value = WhatsappAuthStatus.Idle
 
         _uiState.update {
             IngresoVehicularUiState(
@@ -212,12 +218,12 @@ class IngresoVehicularViewModel(
         if (!rawText.startsWith("ginn")) {
             qrCooldownActivo = true
             // 🔴 POP-UP ROJO: QR Inválido (No pertenece a la aplicación)
-            _whatsappStatus.value = WhatsappAuthStatus.Error("Código QR Inválido. No pertenece al sistema del condominio.")
-            _uiState.update { it.copy(currentStep = CaptureStep.PROCESANDO_AUTORIZACION) }
+            val msg="Código QR Inválido. No pertenece al sistema del condominio."
+            geminiVoiceAssistant.forzarLocucionPorAltavoz(msg)
+            _whatsappStatus.value = WhatsappAuthStatus.Error(msg)
 
             viewModelScope.launch(Dispatchers.Main) {
-                delay(2000) // Sostiene el pop-up por 2 segundos exactos
-                _whatsappStatus.value = WhatsappAuthStatus.Idle
+                delay(5000) // Sostiene el pop-up por 5 segundos exactos
                 reiniciarAsistenteCompleto()
                 qrCooldownActivo = false
             }
@@ -226,6 +232,9 @@ class IngresoVehicularViewModel(
         // 2. DESENPAQUETADO: Limpieza del payload
         val payloadLimpio = rawText.substring(4).trim()
         qrCooldownActivo = true
+        val msg="Leyendo código QR... Verificando credenciales"
+        //geminiVoiceAssistant.forzarLocucionPorAltavoz(msg)
+        _whatsappStatus.value = WhatsappAuthStatus.Info(msg)
         _uiState.update { current ->
             current.copy(
                 qrData = payloadLimpio,
@@ -242,8 +251,10 @@ class IngresoVehicularViewModel(
             if (registroQrList.isEmpty() || registroQrList.size < 7) {
                 withContext(Dispatchers.Main) {
                     // 🟡 POP-UP AMARILLO: QR Inexistente (Se usa Info para representar el Warning visual)
-                    _whatsappStatus.value = WhatsappAuthStatus.Error("QR inexistente en el sistema.")
-                    delay(3000)
+                    val msg="QR inexistente en el sistema."
+                    geminiVoiceAssistant.forzarLocucionPorAltavoz(msg)
+                    _whatsappStatus.value = WhatsappAuthStatus.Error(msg)
+                    delay(4000)
                     reiniciarAsistenteCompleto()
                     qrCooldownActivo = false
                 }
@@ -264,8 +275,10 @@ class IngresoVehicularViewModel(
             if (estaVencidoFlag == "1") {
                 withContext(Dispatchers.Main) {
                     // 🟡 POP-UP AMARILLO: QR Vencido por uso previo
-                    _whatsappStatus.value = WhatsappAuthStatus.Alerta("El código QR presentado ya ha sido utilizado anteriormente.")
-                    delay(3000)
+                    val msg="QR vencido, este ya ha sido utilizado anteriormente."
+                    geminiVoiceAssistant.forzarLocucionPorAltavoz(msg)
+                    _whatsappStatus.value = WhatsappAuthStatus.Alerta(msg)
+                    delay(5000)
                     reiniciarAsistenteCompleto()
                     qrCooldownActivo = false
                 }
@@ -296,8 +309,10 @@ class IngresoVehicularViewModel(
                 dataRaw.vencerQR(payloadLimpio)
                 withContext(Dispatchers.Main) {
                     // 🟡 POP-UP AMARILLO: Expiración de ventana de tiempo
-                    _whatsappStatus.value = WhatsappAuthStatus.Alerta("QR de más de 72 hrs ya no es válido.")
-                    delay(3500)
+                    val msg="QR de más de 72 hrs ya no es válido."
+                    geminiVoiceAssistant.forzarLocucionPorAltavoz(msg)
+                    _whatsappStatus.value = WhatsappAuthStatus.Alerta(msg)
+                    delay(5000)
                     reiniciarAsistenteCompleto()
                     qrCooldownActivo = false
                 }
@@ -325,8 +340,10 @@ class IngresoVehicularViewModel(
                     // Si es otro día, procedemos a vencerlo formalmente
                     dataRaw.vencerQR(payloadLimpio)
                     withContext(Dispatchers.Main) {
-                        _whatsappStatus.value = WhatsappAuthStatus.Alerta("QR de Terraza caducado. Solo era válido para el día de su creación.")
-                        delay(3500)
+                        val msg="QR de Terraza caducado. Solo era válido para el día de su creación."
+                        geminiVoiceAssistant.forzarLocucionPorAltavoz(msg)
+                        _whatsappStatus.value = WhatsappAuthStatus.Alerta(msg)
+                        delay(7000)
                         reiniciarAsistenteCompleto()
                         qrCooldownActivo = false
                     }
@@ -350,7 +367,8 @@ class IngresoVehicularViewModel(
                     conductorInput = nombreInvitadoQr,
                     placaInput = if (placasQr.isNotEmpty()) placasQr else "SIN PLACA REG",
                     tipoInput = if (esCasoTerraza) "Invitado Terraza" else "Invitado QR",
-                    descripcionInput = "Acceso validado exitosamente vía Código QR Encriptado MD5: $payloadLimpio",
+                    qrData = payloadLimpio,
+                    descripcionInput = "Acceso validado exitosamente vía Código QR [$calleQr:$numeroQr]",
                     status = "AUTORIZADO"
                 )
             }
@@ -361,7 +379,8 @@ class IngresoVehicularViewModel(
                 _whatsappStatus.value = WhatsappAuthStatus.Autorizado
                 _uiState.update { it.copy(lblTopMensaje = "ACCESO AUTORIZADO - BIENVENIDO") }
 
-                geminiVoiceAssistant.forzarLocucionPorAltavoz("Código QR aceptado. Diríjase a la calle $calleQr número $numeroQr. Bienvenido.")
+                geminiVoiceAssistant.forzarLocucionPorAltavoz("Código QR aceptado.")
+                delay(3000)
 
                 // Disparamos la lógica de almacenamiento e imágenes
                 ejecutarGuardadoTransaccionalFinal(_uiState.value)
@@ -376,7 +395,7 @@ class IngresoVehicularViewModel(
                         placa = _uiState.value.placaInput, calle = calleQr, numero = numeroQr,
                         tipo = "Invitado Terraza (Multi-uso Diario)", conductor = nombreInvitadoQr,
                         descripcion = "Tu invitado ha ingresado usando el QR de la Terraza.",
-                        foto1Url = "", foto2Url = "", qrData = payloadLimpio, fechaSalida = "", status = "AUTORIZADO"
+                        foto1Url = urlFoto1, foto2Url = urlFoto2, qrData = payloadLimpio, fechaSalida = "", status = "AUTORIZADO"
                     )
 
                     // Hilo secundario IO dedicado para despachar la alerta sin congelar la UI de salida de la pantalla
@@ -429,11 +448,10 @@ class IngresoVehicularViewModel(
             viewModelScope.launch(Dispatchers.Main) {
                 // Guardamos directo sin pedir confirmaciones
                 ejecutarGuardadoTransaccionalFinal(_uiState.value)
-                delay(1000)
+                delay(5000)
                 reiniciarAsistenteCompleto()
             }
         } else {
-            geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme la calle de destino, porfavor.")
             _uiState.update {
                 it.copy(
                     tipoInput = motivo,
@@ -441,21 +459,23 @@ class IngresoVehicularViewModel(
                     lblTopMensaje = "Indique la calle de destino:"
                 )
             }
+            evaluaDatosMaquinaDeEstados()
         }
-        controlarCicloDeVidaDeStreaming()
+        //controlarCicloDeVidaDeStreaming()
     }
 
     fun seleccionarCalle(calle: String) {
         iniciarTimerInactividad()
-        geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme el numero del domicilio.")
         _uiState.update {
             it.copy(
                 calleInput = calle,
-                currentStep = CaptureStep.SELECCION_NUMERO,
+                numeroInput = "",
+                //currentStep = CaptureStep.SELECCION_NUMERO,
                 lblTopMensaje = "Seleccione el número de casa para la calle $calle:"
             )
         }
-        controlarCicloDeVidaDeStreaming()
+        evaluaDatosMaquinaDeEstados()
+        //controlarCicloDeVidaDeStreaming()
     }
 
     fun seleccionarNumero(numero: String) {
@@ -468,16 +488,16 @@ class IngresoVehicularViewModel(
             // Pasamos la calle que ya estaba guardada en el estado y el número que acaba de llegar
             registrarDireccionPaqueteriaActualYPreguntar(_uiState.value.calleInput, numero)
         } else {
-            geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme el nombre del conductor.")
             _uiState.update {
                 it.copy(
                     numeroInput = numero,
-                    currentStep = CaptureStep.CAPTURA_NOMBRE,
+                    //currentStep = CaptureStep.CAPTURA_NOMBRE,
                     lblTopMensaje = "Ingrese el nombre del conductor:"
                 )
             }
+            evaluaDatosMaquinaDeEstados()
         }
-        controlarCicloDeVidaDeStreaming()
+        //controlarCicloDeVidaDeStreaming()
     }
 
     fun confirmarDireccion(respuesta: String){
@@ -489,38 +509,39 @@ class IngresoVehicularViewModel(
                 // Si el reingreso inteligente detecta paquetería, registramos esa primera casa y preguntamos por más
                 registrarDireccionPaqueteriaActualYPreguntar(_uiState.value.calleInput, _uiState.value.numeroInput)
             } else {
-                geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme el nombre del conductor.")
                 _uiState.update {
                     it.copy(
-                        currentStep = CaptureStep.CAPTURA_NOMBRE,
+                        //currentStep = CaptureStep.CAPTURA_NOMBRE,
                         lblTopMensaje = "Ingrese el nombre del conductor:"
                     )
                 }
+                evaluaDatosMaquinaDeEstados()
             }
         }else{
             _uiState.update {
                 it.copy(
                     calleInput = "",
                     numeroInput = "",
-                    currentStep = CaptureStep.SELECCION_CALLE,
+                    //currentStep = CaptureStep.SELECCION_CALLE,
                     lblTopMensaje = "Indique la calle de destino:"
                 )
             }
+            evaluaDatosMaquinaDeEstados()
         }
-        controlarCicloDeVidaDeStreaming()
+        //controlarCicloDeVidaDeStreaming()
     }
 
     fun guardarNombreYPasarAPlacas(nombre: String) {
         iniciarTimerInactividad()
-        geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme su placa.")
         _uiState.update {
             it.copy(
                 conductorInput = nombre.uppercase(),
-                currentStep = CaptureStep.CAPTURA_PLACA,
+                //currentStep = CaptureStep.CAPTURA_PLACA,
                 lblTopMensaje = "Valide la placa tecleada o leída por la cámara:"
             )
         }
-        controlarCicloDeVidaDeStreaming()
+        evaluaDatosMaquinaDeEstados()
+        //controlarCicloDeVidaDeStreaming()
     }
 
     fun registrarDireccionPaqueteriaActualYPreguntar(calle: String, numero: String) {
@@ -609,6 +630,58 @@ class IngresoVehicularViewModel(
             controlarCicloDeVidaDeStreaming()
             ejecutarFiltrosDeSeguridadCompleto()
         }
+    }
+
+    fun evaluaDatosMaquinaDeEstados(){
+        val estadoActual = _uiState.value
+
+        // Si ya está procesando una autorización, congelamos cambios de pasos
+        if (estadoActual.currentStep == CaptureStep.PROCESANDO_AUTORIZACION) return
+
+        when {
+            estadoActual.tipoInput.isEmpty() -> {
+                geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme el motivo de su ingreso, porfavor.")
+                _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_MOTIVO) }
+            }
+
+            // Si es paquetería y no ha capturado ninguna dirección en la lista, pide la primera
+            estadoActual.tipoInput.uppercase().contains("PAQUETERIA") && estadoActual.direccionesPaqueteria.isEmpty() && estadoActual.calleInput.isEmpty() -> {
+                geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme la calle del domicilio.")
+                _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_CALLE) }
+            }
+
+            // Si es paquetería y está respondiendo la pregunta del bucle
+            estadoActual.currentStep == CaptureStep.PREGUNTA_OTRA_DIRECCION -> {
+                // Mantiene el estado visual congelado hasta que responda SI o NO por voz/botón
+            }
+
+            // Para cualquier otro motivo que no tenga dirección capturada
+            !estadoActual.tipoInput.uppercase().contains("PAQUETERIA") && estadoActual.calleInput.isEmpty() -> {
+                geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme la calle del domicilio.")
+                _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_CALLE) }
+            }
+
+            !estadoActual.tipoInput.uppercase().contains("PAQUETERIA") && estadoActual.numeroInput.isEmpty() -> {
+                geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme el numero del domicilio.")
+                _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_NUMERO) }
+            }
+
+            estadoActual.conductorInput.isEmpty() -> {
+                geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme el nombre del conductor.")
+                _uiState.update { it.copy(currentStep = CaptureStep.CAPTURA_NOMBRE) }
+            }
+
+            estadoActual.placaInput.isEmpty() -> {
+                geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme su placa.")
+                _uiState.update { it.copy(currentStep = CaptureStep.CAPTURA_PLACA) }
+            }
+
+            else -> {
+                // ¡DATOS COMPLETOS VIA ASISTENTE DE VOZ! Ejecuta la solicitud final
+                guardarPlacaYSolicitarAutorizacion(estadoActual.placaInput)
+            }
+        }
+        controlarCicloDeVidaDeStreaming()
     }
 
     // --- VALIDACIONES REGISTROS INTELIGENCIA
@@ -843,7 +916,9 @@ class IngresoVehicularViewModel(
                     Pair(urlPlaca, urlRostro)
                 }
 
-                val (urlFoto1, urlFoto2) = uploadAndCloseJob.await()
+                val (url1, url2) = uploadAndCloseJob.await()
+                urlFoto1 = url1
+                urlFoto2 = url2
 
                 //  Construir la Entidad Estructurada para DataRawRondin (Alineada a las 13 columnas de Sheets)
                 val accesoBitacora = AccesoBitacora(
@@ -857,7 +932,7 @@ class IngresoVehicularViewModel(
                     descripcion = state.descripcionInput,
                     foto1Url = urlFoto1,
                     foto2Url = urlFoto2,
-                    qrData = "",
+                    qrData = state.qrData,
                     fechaSalida = "",
                     status = if (esAutorizado) "AUTORIZADO" else "DENEGADO"
                 )
@@ -1412,7 +1487,7 @@ class IngresoVehicularViewModel(
             // --- PASO 0: MOTIVO ---
             if (tipo.isNotEmpty() && _uiState.value.tipoInput != tipo) {
                 val matchMotivo = listadoMotivosPredefinidos.find { it.uppercase() == tipo.uppercase() }
-                    ?: listadoMotivosPredefinidos.find { tipo.uppercase().contains(it.uppercase()) }
+                    ?: listadoMotivosPredefinidos.find { tipo.uppercase().contains(it.uppercase()) || it.uppercase().contains(tipo.uppercase()) }
 
                 if (matchMotivo != null) {
                     // Validación Exprés de Servicios Públicos / Emergencia vía Voz
@@ -1434,7 +1509,7 @@ class IngresoVehicularViewModel(
                         }
                         withContext(Dispatchers.Main) {
                             ejecutarGuardadoTransaccionalFinal(_uiState.value)
-                            delay(1000)
+                            delay(4000)
                             reiniciarAsistenteCompleto()
                         }
                         return@launch // Terminación inmediata del flujo
@@ -1539,49 +1614,7 @@ class IngresoVehicularViewModel(
             // 5. MÁQUINA DE ESTADOS REPOSITORIO: CALCULAR EL PASO SIGUIENTE CORRECTO
             // =========================================================================
             withContext(Dispatchers.Main) {
-                val estadoActual = _uiState.value
-
-                // Si ya está procesando una autorización, congelamos cambios de pasos
-                if (estadoActual.currentStep == CaptureStep.PROCESANDO_AUTORIZACION) return@withContext
-
-                when {
-                    estadoActual.tipoInput.isEmpty() -> {
-                        _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_MOTIVO) }
-                    }
-
-                    // Si es paquetería y no ha capturado ninguna dirección en la lista, pide la primera
-                    estadoActual.tipoInput.uppercase().contains("PAQUETERIA") && estadoActual.direccionesPaqueteria.isEmpty() && estadoActual.calleInput.isEmpty() -> {
-                        _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_CALLE) }
-                    }
-
-                    // Si es paquetería y está respondiendo la pregunta del bucle
-                    estadoActual.currentStep == CaptureStep.PREGUNTA_OTRA_DIRECCION -> {
-                        // Mantiene el estado visual congelado hasta que responda SI o NO por voz/botón
-                    }
-
-                    // Para cualquier otro motivo que no tenga dirección capturada
-                    !estadoActual.tipoInput.uppercase().contains("PAQUETERIA") && estadoActual.calleInput.isEmpty() -> {
-                        _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_CALLE) }
-                    }
-
-                    !estadoActual.tipoInput.uppercase().contains("PAQUETERIA") && estadoActual.numeroInput.isEmpty() -> {
-                        _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_NUMERO) }
-                    }
-
-                    estadoActual.conductorInput.isEmpty() -> {
-                        _uiState.update { it.copy(currentStep = CaptureStep.CAPTURA_NOMBRE) }
-                    }
-
-                    estadoActual.placaInput.isEmpty() -> {
-                        _uiState.update { it.copy(currentStep = CaptureStep.CAPTURA_PLACA) }
-                    }
-
-                    else -> {
-                        // ¡DATOS COMPLETOS VIA ASISTENTE DE VOZ! Ejecuta la solicitud final
-                        guardarPlacaYSolicitarAutorizacion(estadoActual.placaInput)
-                    }
-                }
-                controlarCicloDeVidaDeStreaming()
+                evaluaDatosMaquinaDeEstados()
             }
 //            if (stepActual == _uiState.value.currentStep) {
 //                var msgAsitente=""
@@ -1626,7 +1659,7 @@ class IngresoVehicularViewModel(
                     seleccionarMotivo(matchMotivo)
                 } else {
                     // Si no es un comando exacto, buscamos si la frase contiene la palabra clave
-                    val coincidenciaParcial = listadoMotivosPredefinidos.find { query.contains(it.uppercase()) }
+                    val coincidenciaParcial = listadoMotivosPredefinidos.find { query.uppercase().contains(it.uppercase()) || it.uppercase().contains(query.uppercase()) }
                     if (coincidenciaParcial != null) {
                         _uiState.update { it.copy(subtitulosAsistente = "🤖 Motivo: $coincidenciaParcial") }
                         seleccionarMotivo(coincidenciaParcial)
@@ -1640,7 +1673,7 @@ class IngresoVehicularViewModel(
             CaptureStep.SELECCION_CALLE -> {
                 // Extraer las calles únicas dadas de alta en el condominio
                 val listaCallesUnicas = todosLosDomiciliosCache.map { it[0].toString() }.distinct()
-                val matchCalle = listaCallesUnicas.find { it.uppercase() == query || query.contains(it.uppercase()) }
+                val matchCalle = listaCallesUnicas.find { it.uppercase() == query || query.uppercase().contains(it.uppercase()) || it.uppercase().contains(query.uppercase()) }
 
                 if (matchCalle != null) {
                     _uiState.update { it.copy(subtitulosAsistente = "🤖 Calle selecionada: $matchCalle") }
@@ -1658,7 +1691,7 @@ class IngresoVehicularViewModel(
                     .map { it[1].toString() }
 
                 // Buscamos si el dictado numérico coincide con alguna de las casas existentes
-                val matchNumero = numerosValidosParaCalle.find { query.contains(it) || it == query }
+                val matchNumero = numerosValidosParaCalle.find { it.uppercase() == query.uppercase() }
 
                 if (matchNumero != null) {
                     _uiState.update { it.copy(subtitulosAsistente = "🤖 Numero seleccionado: $matchNumero") }

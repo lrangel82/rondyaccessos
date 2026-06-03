@@ -251,7 +251,7 @@ class DataRawRondin(
             syncMutex.withLock {
                 for (i in iterator) {
                     val row = state.forUpdate[i]
-                    val idx = state.forUpdateIndexes[i] + 2 // Corrección matemática de renglón
+                    val idx = state.forUpdateIndexes[i]
                     val range = "${table.sheetName}!A$idx:Z$idx"
 
                     sheetsService.spreadsheets().values().update(spreadId, range, ValueRange().setValues(listOf(row)))
@@ -1730,7 +1730,7 @@ class DataRawRondin(
         var result = mutableListOf<Any>()
         run loop@{
             rows.forEach { row ->
-                val _md5id = row[1].toString()
+                val _md5id = row[0].toString()
                 if (_md5id == idQR ) {
                     //Concidencia exacta
                     result = row as MutableList<Any>
@@ -1763,7 +1763,7 @@ class DataRawRondin(
 
         //Vencer
         if (indexFind >= 0) {
-            rowData[7] = 1
+            rowData[7] = "1"
             currentCache[indexFind] = rowData
             state.cache = currentCache
 

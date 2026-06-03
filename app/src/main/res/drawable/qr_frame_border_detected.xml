@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+
+    <!-- Fondo transparente para permitir ver la vista previa de la cámara -->
+    <solid android:color="@android:color/transparent" />
+
+    <!-- Borde blanco con un grosor de 4dp -->
+    <stroke
+        android:width="30dp"
+        android:color="#00FF00" />
+
+    <!-- Bordes redondeados de 12dp para un aspecto más moderno -->
+    <corners android:radius="12dp" />
+
+</shape>

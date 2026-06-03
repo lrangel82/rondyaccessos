@@ -138,7 +138,7 @@ class SplashActivity : AppCompatActivity() {
                     val morosos=dataRaw.getMorosos(forceLoad = true, createIfNotExist = true)
                     txtStatus.text = txtStatus.text.toString() + "\n Morosos:${morosos.count()}"
                     delay(500)
-                    val qrs=dataRaw.getMorosos(forceLoad = true, createIfNotExist = true)
+                    val qrs=dataRaw.getQRs(forceLoad = true, createIfNotExist = true)
                     txtStatus.text = txtStatus.text.toString() + "\n QRs:${qrs.count()}"
                     delay(500)
                 } else {

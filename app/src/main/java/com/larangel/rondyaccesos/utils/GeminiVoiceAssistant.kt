@@ -41,7 +41,9 @@ class GeminiVoiceAssistant(
                             "1) 'speech': El texto corto y amigable que le dirás en voz alta al visitante. " +
                             "2) 'extracted_data': Un objeto con las llaves 'calle', 'numero', 'nombre', 'tipo', 'placa' extraídas de la conversación. " +
                             "Si el campo aún no se conoce, déjalo vacío ''. Ejemplo de respuesta: " +
-                            "{\"speech\": \"Bienvenido, ¿a qué domicilio se dirige?\", \"extracted_data\": {\"calle\":\"\",\"numero\":\"\",\"nombre\":\"\",\"motivo\":\"\",\"placa\":\"\"}}")
+                            "{\"speech\": \"Bienvenido, ¿cual es el motivo de su visita?\", \"extracted_data\": {\"calle\":\"\",\"numero\":\"\",\"nombre\":\"\",\"motivo\":\"\",\"placa\":\"\"}} " +
+                            "El orden para solicitar informacion faltante debe ser el siguiente siempre [tipo,calle,numero,nombre,placa]."
+                    )
                 },
                 generationConfig = generationConfig {
                     responseMimeType = "application/json"
@@ -64,7 +66,9 @@ class GeminiVoiceAssistant(
 
         val prompt = "Conversación actual del visitante: '$transcripcionVigilanteOVisita'. " +
                 "Estructura de datos acumulados hasta ahora: $datosActualesJson. " +
-                "Analiza la entrada de voz, actualiza el JSON y genera la siguiente locución corta para el visitante."
+                "Analiza la entrada de voz, actualiza el JSON y genera la siguiente locución corta para el visitante. " +
+                "El orden para solicitar informacion faltante debe ser el siguiente siempre [tipo,calle,numero,nombre,placa]. " +
+                "Si se tiene todos los datos indicar que se esta solicitando autorizacion"
 
         try {
             val response = generativeModel?.generateContent(prompt)

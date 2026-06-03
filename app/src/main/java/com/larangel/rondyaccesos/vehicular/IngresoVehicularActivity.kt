@@ -2,6 +2,9 @@ package com.larangel.rondyaccesos.vehicular
 
 import android.Manifest
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.provider.Settings
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -131,6 +134,8 @@ class IngresoVehicularActivity : AppCompatActivity() {
         verificarPermisoDeCamaraAutomatizado()
         //Microfono
         verificarPermisosYConfigurarEscucha()
+        //Internet Sockets
+        verificarConexionYFijarAjustes()
 
         //Whatsapp ciclo
         registrarObservadorWhatsapp()
@@ -255,6 +260,28 @@ class IngresoVehicularActivity : AppCompatActivity() {
                 // El permiso no existe (primer arranque de la app), lanzamos el cuadro de diálogo flotante del sistema
                 solicitarPermisoCamaraLanzador.launch(Manifest.permission.CAMERA)
             }
+        }
+    }
+    fun verificarConexionYFijarAjustes() {
+        val connectivityManager = this.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork
+        val capabilities = connectivityManager.getNetworkCapabilities(network)
+
+        // Verifica si hay una red activa con acceso a Internet
+        val tieneInternet = capabilities != null && (
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+                )
+
+        if (!tieneInternet) {
+            Toast.makeText(this, "Se requiere conexión a Internet para esta app", Toast.LENGTH_LONG).show()
+
+            // Abre la pantalla de ajustes de conectividad (Wi-Fi / Datos)
+            val intent = Intent(Settings.ACTION_WIRELESS_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            this.startActivity(intent)
         }
     }
 
@@ -1022,9 +1049,11 @@ class IngresoVehicularActivity : AppCompatActivity() {
                     val textoPlanoQr = qrDetectado?.rawValue
 
                     if (textoPlanoQr != null) {
+                        binding.qrGuideFrame.setBackgroundResource(R.drawable.qr_frame_border_detected)
                         // Regresar al hilo principal para inyectar la validación del prefijo "ginn"
                         lifecycleScope.launch(Dispatchers.Main) {
                             viewModel.procesarContenidoQrDetectado(textoPlanoQr)
+                            binding.qrGuideFrame.setBackgroundResource(R.drawable.qr_frame_border)
                         }
                     }
                 }
@@ -1065,6 +1094,9 @@ class IngresoVehicularActivity : AppCompatActivity() {
                         }
 
                         is WhatsappAuthStatus.Autorizado -> {
+                            if (whatsappDialog == null) {
+                                mostrarDialogoEstructuralWhatsapp()
+                            }
                             actualizarEstadoEstiloDialogo(
                                 titulo = "¡AUTORIZADO!",
                                 colorHex = "#2E7D32", // Verde Material
@@ -1073,6 +1105,9 @@ class IngresoVehicularActivity : AppCompatActivity() {
                         }
 
                         is WhatsappAuthStatus.Denegado -> {
+                            if (whatsappDialog == null) {
+                                mostrarDialogoEstructuralWhatsapp()
+                            }
                             actualizarEstadoEstiloDialogo(
                                 titulo = "DENEGADO EL ACCESO",
                                 colorHex = "#C62828", // Rojo Material
@@ -1081,6 +1116,9 @@ class IngresoVehicularActivity : AppCompatActivity() {
                         }
 
                         is WhatsappAuthStatus.Timeout -> {
+                            if (whatsappDialog == null) {
+                                mostrarDialogoEstructuralWhatsapp()
+                            }
                             actualizarEstadoEstiloDialogo(
                                 titulo = "TIMEOUT SIN RESPUESTA",
                                 colorHex = "#EF6C00", // Naranja de Advertencia
@@ -1089,6 +1127,9 @@ class IngresoVehicularActivity : AppCompatActivity() {
                         }
 
                         is WhatsappAuthStatus.Info -> {
+                            if (whatsappDialog == null) {
+                                mostrarDialogoEstructuralWhatsapp()
+                            }
                             actualizarEstadoEstiloDialogo(
                                 titulo = "Info",
                                 mensajePersonalizado = status.msg,
@@ -1098,6 +1139,9 @@ class IngresoVehicularActivity : AppCompatActivity() {
                         }
 
                         is WhatsappAuthStatus.Alerta -> {
+                            if (whatsappDialog == null) {
+                                mostrarDialogoEstructuralWhatsapp()
+                            }
                             actualizarEstadoEstiloDialogo(
                                 titulo = "Alerta",
                                 mensajePersonalizado = status.msg,
@@ -1107,6 +1151,9 @@ class IngresoVehicularActivity : AppCompatActivity() {
                         }
 
                         is WhatsappAuthStatus.Error -> {
+                            if (whatsappDialog == null) {
+                                mostrarDialogoEstructuralWhatsapp()
+                            }
                             actualizarEstadoEstiloDialogo(
                                 titulo = "ERROR",
                                 mensajePersonalizado = status.msg,
@@ -1123,7 +1170,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
     /**
      * Infla la vista XML y acopla el listener de cancelación manual.
      */
-    private fun mostrarDialogoEstructuralWhatsapp(status: WhatsappAuthStatus.Solicitando) {
+    private fun mostrarDialogoEstructuralWhatsapp(status: WhatsappAuthStatus.Solicitando? = null) {
         val inflater = layoutInflater
         val dialogView = inflater.inflate(R.layout.dialog_whatsapp_auth, null)
 
@@ -1131,12 +1178,14 @@ class IngresoVehicularActivity : AppCompatActivity() {
         val btnCancelar = dialogView.findViewById<Button>(R.id.btnDialogCancelar)
 
         // Formateo de texto enriquecido Bold (Equivalente al tag_config highlight de tu Python)
-        val textoFormateado = android.text.Html.fromHtml(
-            "Solicitando la autorización para el ingreso de <b><font color='#0288D1'>${status.nombre}</font></b> " +
-                    "al domicilio <b><font color='#0288D1'>${status.calle} ${status.numero}</font></b>",
-            android.text.Html.FROM_HTML_MODE_LEGACY
-        )
-        tvMensaje.text = textoFormateado
+        if (status != null) {
+            val textoFormateado = android.text.Html.fromHtml(
+                "Solicitando la autorización para el ingreso de <b><font color='#0288D1'>${status.nombre}</font></b> " +
+                        "al domicilio <b><font color='#0288D1'>${status.calle} ${status.numero}</font></b>",
+                android.text.Html.FROM_HTML_MODE_LEGACY
+            )
+            tvMensaje.text = textoFormateado
+        }
 
         // --- AQUÍ SE USA EL MÉTODO DE CANCELACIÓN MANUAL ---
         btnCancelar.setOnClickListener {
