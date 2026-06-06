@@ -35,3 +35,42 @@ REANUDACIÓN DE PROYECTO: "Rondy Accesos" -
 
 
 Confirma que has leído, comprendido y cargado este manifiesto en tu memoria. Quedo a la espera de mis instrucciones para pulir o refactorizar el siguiente módulo condominal.
+
+
+---
+###### GUIA PARA EL DISENIO DEL ESTILO
+PROTOCOLO DE DISEÑO UI/UX: RONDY ACCESOS (CYBER-SECURITY DARK)
+Este protocolo define la identidad visual y estructural para todos los módulos del sistema (Ingresos, Salidas, Peatonal, Satélites).
+1. FUNDAMENTOS VISUALES (PALETA SEMÁNTICA) 
+   - Background Base: #0A0E14 (Deep Midnight Blue).
+   - Superficies/Cards: #161B22 (Steel Gray).
+   - Bordes/Stroke: #30363D (1dp de grosor para delimitación).
+   - Acento/IA: #00D4FF (Electric Cyan). Uso: Botones principales, estados activos, bordes de enfoque.
+   - Éxito: #00E676 (Emerald Green). Uso: Autorizaciones, procesos exitosos.
+   - Alerta/Timer: #FFAB40 (Soft Amber). Uso: Temporizadores, advertencias leves.
+   - Error/Pánico: #FF5252 (Vivid Red). Uso: Denegaciones, fallas de hardware.
+   - Texto Secundario: #8B949E (Slate Gray). 
+2. COMPONENTES ESTRUCTURALES
+   - Contenedores: Uso obligatorio de MaterialCardView con cardCornerRadius="24dp" para interacción y 16dp para visualización (cámaras).
+   - Botones:
+         - Principales: MaterialButton (Contained), altura 60dp, esquinas 12dp.
+         - Secundarios: MaterialButton (TextButton/Outlined) en color #FF5252 para cancelaciones.
+   - Selección (Chips): Uso de ChipGroup inyectado dinámicamente. Chips con fondo transparente, borde blanco/cian y texto en blanco (18sp).
+   - Entrada de Datos: TextInputLayout estilo OutlinedBox. Fuente en negrita, tamaño 28sp a 34sp.
+   - Indicadores LED: El objeto indicadorColorMicro debe usar el drawable shape_circle_glow para simular un LED físico con resplandor. 
+3. JERARQUÍA Y UX (EL CAMINO DEL OJO)
+     1.Zona Superior (Status): Header minimalista con mensaje de acción actual, Timer de inactividad tipo "Pill" y botón sutil de configuración.
+     2.Zona Central (Contexto): Módulos de cámaras (LPR y QR) con botones de configuración flotantes internos (transparencia al 50%). 
+     3.Zona Inferior/Derecha (Acción): El "Cerebro" de la UI. Título de instrucción grande (24sp), burbuja de diálogo de IA (bg_ai_bubble) y área de scroll para opciones táctiles. 
+4. ESTADOS DE ALTA VISIBILIDAD (PANELES)
+   - Splash de Inactividad: Fondo con degradado @drawable/bg_splash_gradient. Debe cubrir el 100% de la pantalla, ser clickable y mostrar un mensaje de bienvenida ("¡HOLA!") en 80sp.
+   - Panel de Resultado: Al finalizar un registro, desplegar un FrameLayout a pantalla completa.
+         - Autorizado: Fondo verde/negro, texto 64sp negrita.
+         - Denegado: Fondo rojo/blanco, texto 64sp negrita.
+         - Duración: Mostrar por 4-5 segundos antes del reset automático.
+5. REGLAS DE RESPONSIVIDAD (LANDSCAPE)
+   - Uso de Guideline al 40% vertical.
+   - Lado Izquierdo (40%): Cámaras apiladas verticalmente.
+   - Lado Derecho (60%): Panel de interacción completo con ScrollView para garantizar que los botones de acción no salgan del viewport.
+
+Instrucción para la IA: "Al diseñar o refactorizar cualquier layout de Rondy Accesos, aplica estrictamente este protocolo, priorizando la legibilidad para guardias de seguridad y la estética de centro de control moderno."

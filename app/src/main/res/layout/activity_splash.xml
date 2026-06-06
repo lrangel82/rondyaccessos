@@ -11,11 +11,11 @@
     <!-- App Logo / Visual Anchor Centered -->
     <ImageView
         android:id="@+id/imgLogo"
-        android:layout_width="180dp"
-        android:layout_height="180dp"
+        android:layout_width="308dp"
+        android:layout_height="435dp"
         android:layout_marginBottom="32dp"
         android:contentDescription="Rondy Accesos Logo"
-        android:src="@android:drawable/ic_popup_sync"
+        android:src="@drawable/logo_sintext2"
         app:layout_constraintBottom_toTopOf="@+id/progressBar"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -23,6 +23,8 @@
         app:layout_constraintVertical_chainStyle="packed" />
 
     <!-- Loading Indicator -->
+
+    <!-- Real-time Status Text Message -->
     <ProgressBar
         android:id="@+id/progressBar"
         style="?android:attr/progressBarStyle"
@@ -32,10 +34,10 @@
         android:indeterminateTint="#00E676"
         app:layout_constraintBottom_toTopOf="@+id/txtStatus"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.498"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/imgLogo" />
 
-    <!-- Real-time Status Text Message -->
     <TextView
         android:id="@+id/txtStatus"
         android:layout_width="0dp"

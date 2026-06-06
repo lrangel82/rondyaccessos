@@ -1,121 +1,118 @@
-package com.larangel.rondyaccesos.models.com.larangel.rondyaccesos.peatonal
+package com.larangel.rondyaccesos.peatonal
 
 import android.app.Application
+import android.graphics.Bitmap
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.larangel.rondyaccesos.RondyApplication
-import com.larangel.rondyaccesos.models.AccesoBitacora
-import com.larangel.rondyaccesos.models.sockets.MessageType
-import com.larangel.rondyaccesos.models.sockets.SocketMessage
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import java.time.LocalDate
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
+import com.larangel.rondyaccesos.models.*
+import com.larangel.rondyaccesos.models.network.*
+import com.larangel.rondyaccesos.utils.*
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
+import java.util.concurrent.atomic.AtomicBoolean
 
-data class PeatonalUiState(
-    val mensajeSuperior: String = "Ingrese datos de la visita",
-    val calle: String = "",
-    val numero: String = "",
-    val nombre: String = "",
-    val motivo: String = "",
-    val esMoroso: Boolean = false,
-    val subtitulosIA: String = "",
-    val estatusMorosidadTxt: String = ""
-)
+class IngresoPeatonalViewModel(
+    application: Application,
+    private val dataRaw: DataRawRondin,
+    private val geminiVoiceAssistant: GeminiVoiceAssistant,
+    private val apiService: BotCasetaApiService,
+    private val mySettings: MySettings
+) : AndroidViewModel(application) {
 
-class IngresoPeatonalViewModel(application: Application) : AndroidViewModel(application) {
+    private val _uiState = MutableStateFlow(IngresoPeatonalUiState())
+    val uiState: StateFlow<IngresoPeatonalUiState> = _uiState.asStateFlow()
 
-    private val _uiState = MutableStateFlow(PeatonalUiState())
-    val uiState: StateFlow<PeatonalUiState> = _uiState.asStateFlow()
+    private val flujoResuelto = AtomicBoolean(false)
+    private var orquestadorJob: Job? = null
+    private var timerInactividadJob: Job? = null
+    private val TIMEOUT_INACTIVIDAD = 60
 
-    private val networkManager = getApplication<RondyApplication>().networkManager
-    private val registroMutex = Mutex()
-
-    fun onCalleChanged(valor: String) { _uiState.update { it.copy(calle = valor) } }
-    fun onNombreChanged(valor: String) { _uiState.update { it.copy(nombre = valor) } }
-    fun onMotivoChanged(valor: String) { _uiState.update { it.copy(motivo = valor) } }
-
-    fun onNumeroChanged(valor: String) {
-        _uiState.update { it.copy(numero = valor) }
-        verificarRestriccionesDomicilio()
+    init {
+        reiniciarAsistentePeatonal()
     }
 
-    private fun verificarRestriccionesDomicilio() {
-        val calle = _uiState.value.calle.trim()
-        val numero = _uiState.value.numero.trim()
-        if (calle.isEmpty() || numero.isEmpty()) return
+    fun reiniciarAsistentePeatonal(porExito: Boolean = false) {
+        orquestadorJob?.cancel()
+        timerInactividadJob?.cancel()
+        flujoResuelto.set(false)
 
-        // Lógica de validación dura solicitada para peatonal
-        val deudorDetectado = false // Conectar con la estructura DataRawRondin.kt -> helpers.esDeudor(calle, numero)
+        _uiState.update {
+            IngresoPeatonalUiState(
+                currentStep = CaptureStep.SELECCION_MOTIVO,
+                //mensajeSuperior = "CONTROL PEATONAL ACTIVO",
+                mencionarBienvenida = porExito
+            )
+        }
 
-        if (deudorDetectado) {
-            _uiState.update {
-                it.copy(
-                    esMoroso = true,
-                    estatusMorosidadTxt = "DOMICILIO MOROSO: INGRESO NEGADO",
-                    mensajeSuperior = "Acceso Denegado. Indique al visitante comunicarse con el residente."
-                )
+        if (porExito) {
+            geminiVoiceAssistant.forzarLocucionPorAltavoz("Acceso autorizado. Bienvenido.")
+        }
+        iniciarTimerInactividad()
+    }
+
+    private fun iniciarTimerInactividad() {
+        timerInactividadJob?.cancel()
+        timerInactividadJob = viewModelScope.launch {
+            var segundos = TIMEOUT_INACTIVIDAD
+            while (segundos > 0) {
+                delay(1000)
+                segundos--
+                _uiState.update { it.copy(segundosRestantes = segundos) }
             }
-        } else {
-            _uiState.update {
-                it.copy(
-                    esMoroso = false,
-                    estatusMorosidadTxt = "Domicilio autorizado",
-                    mensajeSuperior = "Datos válidos. Puede proceder."
-                )
+            _uiState.update { it.copy(mostrarSplash = true) }
+        }
+    }
+
+    fun procesarEntradaVoz(texto: String) {
+        if (_uiState.value.mostrarSplash) {
+            if (texto.lowercase().contains("hola")) {
+                _uiState.update { it.copy(mostrarSplash = false) }
+                reiniciarAsistentePeatonal()
+            }
+            return
+        }
+        iniciarTimerInactividad()
+        // Aquí se invoca a Gemini para extraer Calle, Numero, Nombre, Motivo
+        // similar a la lógica vehicular pero omitiendo Placas.
+    }
+
+    fun validarYProcesarAcceso(calle: String, numero: String, nombre: String, motivo: String) {
+        viewModelScope.launch(Dispatchers.Default) {
+            // 1. Validar Morosidad
+            if (dataRaw.esDomicilioMoroso(calle, numero)) {
+                manejarDenegacion("DOMICILIO MOROSO - ACCESO RESTRINGIDO")
+                return@launch
+            }
+
+            // 2. Iniciar Orquestador (La misma lógica de tu VehicularViewModel)
+            iniciarFlujoAutorizaciónPeatonal(calle, numero, nombre, motivo)
+        }
+    }
+
+    private suspend fun iniciarFlujoAutorizaciónPeatonal(calle: String, numero: String, nombre: String, motivo: String) {
+        val tokenApi = "Bearer " + mySettings.getString("TOKEN_API_BOTCASETA", "")
+        val telefonos = dataRaw.getWhatsappTelefonosDomicilio(calle, numero)
+
+        orquestadorJob = viewModelScope.launch(Dispatchers.IO) {
+            // Hilo WhatsApp Polling
+            launch {
+               // ejecutarSondeoWhatsAppPeatonal(calle, numero, nombre, motivo, telefonos, tokenApi)
+            }
+            // Hilo IVR (Llamada) a los 30 segundos
+            launch {
+                delay(30000)
+                //dispararIVRPeatonal(calle, numero, nombre, motivo, tokenApi)
             }
         }
     }
 
-    fun registrarIngresoPeatonal(fotoRostroPath: String) {
-        viewModelScope.launch {
-            if (registroMutex.isLocked) return@launch
-            registroMutex.withLock {
-                val state = _uiState.value
-                if (state.calle.isEmpty() || state.numero.isEmpty() || state.nombre.isEmpty()) {
-                    _uiState.update { it.copy(mensajeSuperior = "Error: Faltan datos obligatorios") }
-                    return@launch
-                }
-
-                val registroPeatonal = AccesoBitacora(
-                    fechaCreado = LocalTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")).toString(), // ID temporal offline
-                    fechaIngreso = LocalTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")).toString(),
-                    placa = "PEATONAL",
-                    calle = state.calle,
-                    numero = state.numero,
-                    tipo = "Visitante Peatonal",
-                    conductor = state.nombre,
-                    descripcion = state.motivo,
-                    foto1Url = "",
-                    foto2Url = fotoRostroPath,
-                    qrData = "",
-                    fechaSalida = "",
-                    status = if (state.esMoroso) "AUTORIZADO" else "DENEGADO"
-                )
-
-                _uiState.update { it.copy(mensajeSuperior = "Sincronizando registro con caseta principal...") }
-
-                // Transmisión asíncrona local vía Ktor Sockets hacia la Caseta Central (Padre)
-                networkManager.replicarIngreso(registroPeatonal)
-
-                // Persistir localmente usando tu esquema DataRawRondin para subida diferida
-                // dataRawRondin.sync(SheetTable.BITACORA_ACCESOS, Operation.APPEND, ...)
-
-                if (!state.esMoroso) {
-                    _uiState.update { it.copy(mensajeSuperior = "¡INGRESO AUTORIZADO!") }
-                } else {
-                    _uiState.update { it.copy(mensajeSuperior = "INGRESO RECHAZADO POR MOROSIDAD.") }
-                }
-
-                // TODO: Aquí se puede disparar el envío de la plantilla de notificación de WhatsApp
-            }
-        }
+    private fun manejarDenegacion(razon: String) {
+        //_uiState.update { it.copy(esMoroso = true, mensajeSuperior = razon) }
+        geminiVoiceAssistant.forzarLocucionPorAltavoz(razon)
     }
+
+    // ... (Implementación de ejecutarSondeoWhatsAppPeatonal y dispararIVRPeatonal
+    // replicando la lógica de tu VehicularViewModel pero enviando "Peatonal" como tipo de registro)
 }

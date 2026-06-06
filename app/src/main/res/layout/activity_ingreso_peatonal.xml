@@ -1,154 +1,244 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#121212"
-    android:padding="8dp"
+    android:background="#0A0E14"
+    android:padding="12dp"
     tools:context=".peatonal.IngresoPeatonalActivity">
 
-    <!-- Mensaje de Estado Superior -->
-    <LinearLayout
+    <!-- HEADER -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/headerTop"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical">
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toTopOf="parent">
 
         <TextView
             android:id="@+id/lblTopMensajePeatonal"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="4dp"
-            android:text="Esperando visitante peatonal..."
-            android:textColor="#00E676"
-            android:textSize="20sp"
-            android:textStyle="bold" />
+            android:text="CONTROL PEATONAL"
+            android:textColor="#00D4FF"
+            android:textSize="14sp"
+            android:letterSpacing="0.1"
+            android:textStyle="bold"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/lblTimerInactividad"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_timer_pill"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="4dp"
+            android:text="60s"
+            android:textColor="#FFAB40"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <LinearLayout
-            android:id="@+id/columnaCamaraPeatonal"
-            android:layout_width="match_parent"
-            android:layout_height="363dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:layout_marginEnd="8dp"
-            android:orientation="vertical">
+            android:gravity="center_vertical"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/lblTopMensajePeatonal">
+            <View
+                android:id="@+id/indicadorColorMicro"
+                android:layout_width="10dp"
+                android:layout_height="10dp"
+                android:background="@drawable/shape_circle_glow" />
+            <TextView
+                android:id="@+id/lblEstadoHardwareVoz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="ASISTENTE ACTIVO"
+                android:textColor="#8B949E"
+                android:textSize="11sp" />
+        </LinearLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
+    <!-- ÁREA DE CÁMARA (ROSTRO) -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardCamara"
+        android:layout_width="match_parent"
+        android:layout_height="280dp"
+        android:layout_marginTop="16dp"
+        app:cardBackgroundColor="#000000"
+        app:cardCornerRadius="24dp"
+        app:strokeColor="#30363D"
+        app:strokeWidth="1dp"
+        app:layout_constraintTop_toBottomOf="@id/headerTop">
+
+        <FrameLayout android:layout_width="match_parent" android:layout_height="match_parent">
             <androidx.camera.view.PreviewView
                 android:id="@+id/previewViewRostro"
                 android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1.5"
-                android:background="#000000" />
+                android:layout_height="match_parent" />
 
-            <!-- Subtítulos de asistencia por voz de Gemini -->
-            <TextView
-                android:id="@+id/lblSubtitulosPeatonal"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="0.5"
-                android:padding="4dp"
-                android:text=""
-                android:textColor="#FFEB3B"
-                android:textSize="14sp"
-                android:textStyle="italic" />
+            <View
+                android:layout_width="180dp"
+                android:layout_height="180dp"
+                android:layout_gravity="center"
+                android:background="@drawable/qr_frame_border_modern" />
 
-        </LinearLayout>
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnTomarFoto"
+                style="@style/Widget.MaterialComponents.Button.Icon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|center_horizontal"
+                android:layout_marginBottom="12dp"
+                android:text="CAPTURAR ROSTRO"
+                android:backgroundTint="#80000000"
+                app:icon="@android:drawable/ic_menu_camera" />
+        </FrameLayout>
+    </com.google.android.material.card.MaterialCardView>
 
-        <ScrollView
+    <!-- PANEL DE INTERACCIÓN -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="16dp"
+        app:cardBackgroundColor="#161B22"
+        app:cardCornerRadius="24dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/cardCamara">
+
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:layout_marginTop="8dp">
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="20dp">
 
-            <LinearLayout
+            <TextView
+                android:id="@+id/lblInstruccionSeccion"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:text="Identifique al visitante"
+                android:textColor="#FFFFFF"
+                android:textSize="22sp"
+                android:textStyle="bold" />
 
-                <LinearLayout
+            <TextView
+                android:id="@+id/lblSubtitulosPeatonal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_ai_bubble"
+                android:padding="8dp"
+                android:text="🤖 Esperando identificación..."
+                android:textColor="#00D4FF" />
+
+            <ScrollView
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:layout_marginTop="12dp">
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/containerGridBotones"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+            </ScrollView>
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:boxStrokeColor="#00D4FF">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/txtInputManual"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <EditText
-                        android:id="@+id/txtCallePeatonal"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:hint="Calle"
-                        android:textColor="#FFFFFF"
-                        android:textColorHint="#666666" />
-
-                    <EditText
-                        android:id="@+id/txtNumeroPeatonal"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:hint="Número"
-                        android:inputType="number"
-                        android:textColor="#FFFFFF"
-                        android:textColorHint="#666666" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/lblMorosidadPeatonal"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text=""
-                    android:textColor="#00E676"
-                    android:textSize="14sp" />
-
-                <EditText
-                    android:id="@+id/txtNombrePeatonal"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:hint="Nombre del Visitante"
-                    android:inputType="textCapWords"
                     android:textColor="#FFFFFF"
-                    android:textColorHint="#666666" />
+                    android:textSize="24sp" />
+            </com.google.android.material.textfield.TextInputLayout>
 
-                <EditText
-                    android:id="@+id/txtMotivoPeatonal"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:hint="Razón de la Visita"
-                    android:textColor="#FFFFFF"
-                    android:textColorHint="#666666" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnGuardarPeatonal"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:layout_marginTop="12dp"
+                android:text="SOLICITAR ACCESO"
+                android:backgroundTint="#00D4FF"
+                app:cornerRadius="12dp" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="24dp"
-                    android:orientation="horizontal"
-                    android:weightSum="2">
+    <FrameLayout
+        android:id="@+id/layoutVisualEstatusDerecho"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#ffffff"
+        android:padding="24dp"
+        android:visibility="gone"
+        tools:layout_editor_absoluteX="12dp"
+        tools:layout_editor_absoluteY="12dp">
 
-                    <Button
-                        android:id="@+id/btnTomarFoto"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginEnd="4dp"
-                        android:layout_weight="1"
-                        android:backgroundTint="#0288D1"
-                        android:text="Capturar Rostro" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="vertical"> <!-- Managed dynamically in code -->
 
-                    <Button
-                        android:id="@+id/btnGuardarPeatonal"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="4dp"
-                        android:layout_weight="1"
-                        android:text="Permitir Ingreso" />
-                </LinearLayout>
-            </LinearLayout>
-        </ScrollView>
+            <TextView
+                android:id="@+id/tvEstatusGrande"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="AUTORIZADO"
+                android:textSize="56sp"
+                android:textStyle="bold" />
 
-    </LinearLayout>
+            <TextView
+                android:id="@+id/tvEstatusDetallePeque"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center"
+                android:paddingHorizontal="16dp"
+                android:text="Razón: Ingreso Estándar"
+                android:textSize="22sp" />
+        </LinearLayout>
+    </FrameLayout>
 
-    <!-- COLUMNA IZQUIERDA: Cámara Frontal (CameraX Preview) -->
+    <FrameLayout
+        android:id="@+id/layoutSplash"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#5CD563"
+        android:clickable="true"
+        android:elevation="100dp"
+        android:focusable="true"
+        android:visibility="gone"
+        tools:layout_editor_absoluteX="8dp"
+        tools:layout_editor_absoluteY="8dp">
 
-    <!-- COLUMNA DERECHA: Formulario Peatonal -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical">
+
+            <ImageView
+                android:layout_width="300dp"
+                android:layout_height="300dp"
+                android:src="@drawable/logo" /> <!-- Tu logo o Gif -->
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="¡HOLA!"
+                android:textColor="#FFFFFF"
+                android:textSize="80sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </FrameLayout>
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>

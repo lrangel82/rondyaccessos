@@ -43,6 +43,7 @@ import org.videolan.libvlc.MediaPlayer
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Canvas
 import android.graphics.Paint
 import androidx.activity.result.contract.ActivityResultContracts
@@ -67,6 +68,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
+import androidx.core.graphics.toColorInt
 
 
 class IngresoVehicularActivity : AppCompatActivity() {
@@ -184,13 +186,13 @@ class IngresoVehicularActivity : AppCompatActivity() {
             when (paso) {
                 CaptureStep.CAPTURA_NOMBRE -> {
                     viewModel.guardarNombreYPasarAPlacas(valorManual)
-                    binding.txtInputManual.text.clear()
+                    binding.txtInputManual.setText("")
                     ocultarTecladoVirtual()
                 }
                 CaptureStep.CAPTURA_PLACA -> {
                     //viewModel.dispararProtocoloDeSeguridadYWhatsApp(valorManual, "Captura Manual Integrada")
                     viewModel.guardarPlacaYSolicitarAutorizacion(valorManual)
-                    binding.txtInputManual.text.clear()
+                    binding.txtInputManual.setText("")
                     ocultarTecladoVirtual()
                 }
                 else -> {}
@@ -427,11 +429,13 @@ class IngresoVehicularActivity : AppCompatActivity() {
             binding.lblEstadoHardwareVoz.text = estadoTexto
 
             // Crear un fondo circular o cuadrado de color dinámico
-            val drawable = android.graphics.drawable.GradientDrawable().apply {
-                shape = android.graphics.drawable.GradientDrawable.OVAL
-                setColor(Color.parseColor(colorHex))
-            }
-            binding.indicadorColorMicro.background = drawable
+//            val drawable = android.graphics.drawable.GradientDrawable().apply {
+//                shape = android.graphics.drawable.GradientDrawable.OVAL
+//                setColor(Color.parseColor(colorHex))
+//            }
+//            binding.indicadorColorMicro.background = drawable
+            binding.indicadorColorMicro.backgroundTintList = ColorStateList.valueOf(colorHex.toColorInt())
+            binding.lblEstadoHardwareVoz.setTextColor(colorHex.toColorInt())
         }
     }
 
@@ -594,13 +598,13 @@ class IngresoVehicularActivity : AppCompatActivity() {
                     binding.layoutVisualEstatusDerecho.visibility = View.VISIBLE
                     if (state.resultadoEsAutorizado) {
                         // High-contrast: Green Background with Black Text
-                        binding.panelColorContenedor.setBackgroundColor(Color.parseColor("#4CAF50"))
+                        binding.layoutVisualEstatusDerecho.setBackgroundColor(Color.parseColor("#4CAF50"))
                         binding.tvEstatusGrande.setTextColor(Color.BLACK)
                         binding.tvEstatusDetallePeque.setTextColor(Color.BLACK)
                         binding.tvEstatusGrande.text = "AUTORIZADO"
                     } else {
                         // High-contrast: Red Background with White Text
-                        binding.panelColorContenedor.setBackgroundColor(Color.parseColor("#E53935"))
+                        binding.layoutVisualEstatusDerecho.setBackgroundColor(Color.parseColor("#E53935"))
                         binding.tvEstatusGrande.setTextColor(Color.WHITE)
                         binding.tvEstatusDetallePeque.setTextColor(Color.WHITE)
                         binding.tvEstatusGrande.text = "DENEGADO"
@@ -631,9 +635,13 @@ class IngresoVehicularActivity : AppCompatActivity() {
         val chip = Chip(this).apply {
             text = texto
             isClickable = true
-            textSize = 20f
+            setChipBackgroundColorResource(android.R.color.transparent)
+            chipStrokeWidth = 2f
+            setChipStrokeColorResource(android.R.color.white) // O tu color #00D4FF
             setTextColor(Color.WHITE)
-            setChipBackgroundColorResource(android.R.color.darker_gray)
+            textSize = 18f
+            //setTextColor(Color.WHITE)
+            //setChipBackgroundColorResource(android.R.color.darker_gray)
             // Al hacer clic, la acción responde de inmediato al primer toque
             setOnClickListener { alPresionar() }
         }
@@ -670,12 +678,12 @@ class IngresoVehicularActivity : AppCompatActivity() {
             }
         }
 
-        binding.btnCambiarAIP.setOnClickListener {
-            viewModel.cambiarOrigenQrAHardwareIp("rtsp://192.168.1.151:554/live")
-            binding.layoutFixCamaraQr.visibility = View.GONE
-            binding.cameraXQrPreview.visibility = View.GONE
-            binding.vlcQrSurfaceFallback.visibility = View.VISIBLE
-        }
+//        binding.btnCambiarAIP.setOnClickListener {
+//            viewModel.cambiarOrigenQrAHardwareIp("rtsp://192.168.1.151:554/live")
+//            binding.layoutFixCamaraQr.visibility = View.GONE
+//            binding.cameraXQrPreview.visibility = View.GONE
+//            binding.vlcQrSurfaceFallback.visibility = View.VISIBLE
+//        }
     }
     private fun observarCicloDeVidaDeCamaras() {
         // 1. Reactive loop managing the playback state of the external IP camera
@@ -696,11 +704,11 @@ class IngresoVehicularActivity : AppCompatActivity() {
             }
         }
 
-        lifecycleScope.launch {
-            viewModel.camaraQrFalla.collectLatest { fallando ->
-                binding.layoutFixCamaraQr.visibility = if (fallando) View.VISIBLE else View.GONE
-            }
-        }
+//        lifecycleScope.launch {
+//            viewModel.camaraQrFalla.collectLatest { fallando ->
+//                binding.layoutFixCamaraQr.visibility = if (fallando) View.VISIBLE else View.GONE
+//            }
+//        }
     }
     private fun encenderStreamVideoRtspPlacas() {
         try {

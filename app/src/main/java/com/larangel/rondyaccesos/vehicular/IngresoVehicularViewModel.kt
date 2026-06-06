@@ -868,7 +868,7 @@ class IngresoVehicularViewModel(
             if(_uiState.value.motivoInput?.RequierePermisoAdmon == true){
                 val permisosHoy = dataRaw.getPermisosCache_DeHoy()
                 val permisoDom = permisosHoy.find {
-                    it[1].toString().equalsIgnoreCase(calle) && it[2].toString().toString().equalsIgnoreCase(numero)
+                    it[1].toString().equalsIgnoreCase(calle) && it[2].toString().equalsIgnoreCase(numero)
                 }
                 //El permiso esta Denegado o no existe?
                 if (permisoDom == null || "1 Si si X".contains(permisoDom[11].toString(), ignoreCase = true) == false) {

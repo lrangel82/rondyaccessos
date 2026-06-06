@@ -5,81 +5,89 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:layout_marginTop="?attr/actionBarSize"
-    android:background="#121212"
+    android:background="#0A0E14"
     android:padding="8dp"
-    tools:context=".vehicular.IngresoVehicularActivity"
-    tools:visibility="visible">
+    tools:context=".vehicular.IngresoVehicularActivity">
 
-    <!-- Banner superior de Estado y Cronómetro de Inactividad -->
-    <RelativeLayout
+    <!-- HEADER: Minimalista con Timer y Configuración -->
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/headerTop"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:paddingBottom="8dp"
         app:layout_constraintTop_toTopOf="parent">
 
         <TextView
             android:id="@+id/lblTopMensaje"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Asistente de Acceso Activo..."
-            android:textColor="#00E676"
-            android:textSize="20sp"
-            android:textStyle="bold" />
+            android:letterSpacing="0.1"
+            android:text="SISTEMA DE ACCESO INTELIGENTE"
+            android:textColor="#00D4FF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <TextView
+                android:id="@+id/lblTimerInactividad"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_timer_pill"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="4dp"
+                android:text="30s"
+                android:textColor="#FFAB40"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <ImageButton
+                android:id="@+id/btnMenuConfiguracion"
+                android:layout_width="35dp"
+                android:layout_height="35dp"
+                android:layout_marginStart="12dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_menu_manage"
+                app:tint="#8B949E" />
+        </LinearLayout>
 
         <LinearLayout
             android:id="@+id/panelEstadoMicofono"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="16dp"
-            android:layout_toStartOf="@+id/btnMenuConfiguracion"
-            android:background="#212121"
+            android:layout_marginTop="4dp"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingStart="8dp"
-            android:paddingTop="4dp"
-            android:paddingEnd="8dp"
-            android:paddingBottom="4dp">
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/lblTopMensaje">
 
-            <!-- Círculo indicador de color -->
             <View
                 android:id="@+id/indicadorColorMicro"
-                android:layout_width="12dp"
-                android:layout_height="12dp"
-                android:layout_marginEnd="6dp"
-                android:background="@android:color/darker_gray" />
+                android:layout_width="10dp"
+                android:layout_height="10dp"
+                android:background="@drawable/shape_circle_glow" />
 
             <TextView
                 android:id="@+id/lblEstadoHardwareVoz"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
                 android:text="INACTIVO"
-                android:textColor="#FFFFFF"
-                android:textSize="12sp"
+                android:textColor="#8B949E"
+                android:textSize="11sp"
                 android:textStyle="bold" />
         </LinearLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
-        <Button
-            android:id="@+id/btnMenuConfiguracion"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-            android:layout_width="wrap_content"
-            android:layout_height="35dp"
-            android:layout_marginEnd="16dp"
-            android:layout_toStartOf="@+id/lblTimerInactividad"
-            android:text="⚙️"
-            android:textColor="#FFFFFF"
-            android:textSize="11sp" />
-
-        <TextView
-            android:id="@+id/lblTimerInactividad"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignParentEnd="true"
-            android:text="Tiempo: 30s"
-            android:textColor="#FFB300"
-            android:textSize="16sp" />
-    </RelativeLayout>
-
-    <!-- COLUMNA IZQUIERDA: Flujos de Cámaras IP (RTSP) -->
+    <!-- COLUMNA IZQUIERDA: Cámaras en vertical (40% de la pantalla) -->
     <LinearLayout
         android:id="@+id/columnaCamaras"
         android:layout_width="0dp"
@@ -93,177 +101,101 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/headerTop">
 
-        <!-- 1. Contenedor de Cámara de Placas (RTSP) -->
-        <RelativeLayout
+        <!-- Card Cámara 1: LPR -->
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="0dp"
             android:layout_marginBottom="4dp"
             android:layout_weight="1"
-            tools:visibility="visible">
+            app:cardBackgroundColor="#000000"
+            app:cardCornerRadius="12dp"
+            app:strokeColor="#30363D"
+            app:strokeWidth="1dp">
 
-            <!-- Native Video Layout Surface for LibVLC Streaming -->
-            <org.videolan.libvlc.util.VLCVideoLayout
-                android:id="@+id/vlcPlacaSurface"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="#000000"
-                android:visibility="visible" />
-
-            <ImageButton
-                android:id="@+id/btnConfigurarCamaraPlacas"
-                android:layout_width="45dp"
-                android:layout_height="45dp"
-                android:layout_alignParentTop="true"
-                android:layout_alignParentEnd="true"
-                android:layout_marginTop="0dp"
-                android:layout_marginEnd="0dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Escanear y Seleccionar Cámara"
-                android:padding="8dp"
-                android:scaleType="centerInside"
-                android:src="@android:drawable/ic_menu_manage"
-                app:tint="#FFFFFF" />
-
-            <!-- Fallback overlay configuration view if connection drops -->
-            <LinearLayout
-                android:id="@+id/layoutFixCamaraPlaca"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="#E6212121"
-                android:gravity="center"
-                android:orientation="vertical"
-                android:padding="8dp"
-                android:visibility="gone">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="⚠️ Error de Señal RTSP"
-                    android:textColor="#FF5252"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
-
-                <EditText
-                    android:id="@+id/txtUrlRtspFix"
+            <FrameLayout android:layout_width="match_parent" android:layout_height="match_parent">
+                <org.videolan.libvlc.util.VLCVideoLayout
+                    android:id="@+id/vlcPlacaSurface"
                     android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
+                <ImageButton
+                    android:id="@+id/btnConfigurarCamaraPlacas"
+                    android:layout_width="35dp"
                     android:layout_height="35dp"
-                    android:layout_marginTop="4dp"
-                    android:background="#333333"
-                    android:hint="rtsp://192.168.1.200:554/stream1"
-                    android:paddingStart="6dp"
-                    android:textColor="#FFFFFF"
-                    android:textSize="11sp" />
+                    android:layout_gravity="top|end"
+                    android:layout_margin="8dp"
+                    android:background="#80000000"
+                    android:src="@android:drawable/ic_menu_camera"
+                    app:tint="#FFFFFF" />
 
-                <Button
-                    android:id="@+id/btnReconectarRtsp"
-                    android:layout_width="wrap_content"
-                    android:layout_height="32dp"
-                    android:layout_marginTop="4dp"
-                    android:text="Reconectar"
-                    android:textSize="10sp" />
-            </LinearLayout>
-        </RelativeLayout>
-
-        <!-- 2. Contenedor de Cámara de Conductor / QR (Nativa o IP) -->
-        <RelativeLayout
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_marginTop="4dp"
-            android:layout_weight="1">
-
-            <!-- Native CameraX Preview for Local Device Frame Decoding -->
-            <androidx.camera.view.PreviewView
-                android:id="@+id/cameraXQrPreview"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="#FF0000"
-                app:implementationMode="compatible" />
-
-            <RelativeLayout
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:layout_centerInParent="true">
-
-                <!-- Recuadro guía blanco con borde -->
-                <View
-                    android:id="@+id/qrGuideFrame"
+                <LinearLayout
+                    android:id="@+id/layoutFixCamaraPlaca"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:layout_centerInParent="true"
-                    android:layout_margin="20dp"
-                    android:background="@drawable/qr_frame_border"
-                    android:scaleX="0.8"
-                    android:scaleY="0.8" />
+                    android:background="#E6161B22"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="8dp"
+                    android:visibility="gone">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ERROR RTSP" android:textColor="#FF5252" android:textSize="10sp" android:textStyle="bold" />
+                    <EditText android:id="@+id/txtUrlRtspFix" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="#333333" android:textColor="#FFFFFF" android:textSize="10sp" />
+                    <Button android:id="@+id/btnReconectarRtsp" android:layout_width="wrap_content" android:layout_height="32dp" android:text="REINTENTAR" android:textSize="9sp" />
+                </LinearLayout>
+            </FrameLayout>
+        </com.google.android.material.card.MaterialCardView>
 
-                <!-- Pequeño texto explicativo acoplado a la esquina inferior derecha del recuadro del 80% -->
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_alignBottom="@id/qrGuideFrame"
-                    android:layout_alignEnd="@id/qrGuideFrame"
-                    android:layout_marginEnd="35dp"
-                    android:layout_marginBottom="25dp"
-                    android:text="QR"
-                    android:textColor="#FFFFFF"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:shadowColor="#000000"
-                    android:shadowDx="2"
-                    android:shadowDy="2"
-                    android:shadowRadius="2" />
-            </RelativeLayout>
+        <!-- Card Cámara 2: QR -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="4dp"
+            android:layout_weight="1"
+            app:cardBackgroundColor="#000000"
+            app:cardCornerRadius="12dp"
+            app:strokeColor="#30363D"
+            app:strokeWidth="1dp">
 
-            <!-- 🌟 NUEVO: BOTÓN FLOTANTE PARA CAMBIAR CÁMARA (FRONTAL / POSTERIOR) -->
-            <ImageButton
-                android:id="@+id/btnSwitchCamera"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_alignParentTop="true"
-                android:layout_alignParentEnd="true"
-                android:layout_marginTop="0dp"
-                android:layout_marginEnd="0dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Cambiar Cámara"
-                android:padding="1dp"
-                android:scaleType="centerInside"
-                android:src="@android:drawable/ic_menu_camera"
-                app:tint="#FFFFFF" />
+            <FrameLayout android:layout_width="match_parent" android:layout_height="match_parent">
+                <androidx.camera.view.PreviewView
+                    android:id="@+id/cameraXQrPreview"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
 
-            <!-- Alternative LibVLC layout if the user configures an IP camera instead of local hardware -->
-            <org.videolan.libvlc.util.VLCVideoLayout
-                android:id="@+id/vlcQrSurfaceFallback"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="#000000"
-                android:visibility="gone" />
+                <View
+                    android:id="@+id/qrGuideFrame"
+                    android:layout_width="100dp"
+                    android:layout_height="100dp"
+                    android:layout_gravity="center"
+                    android:background="@drawable/qr_frame_border_modern" />
 
-            <LinearLayout
-                android:id="@+id/layoutFixCamaraQr"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="#E6212121"
-                android:gravity="center"
-                android:orientation="vertical"
-                android:padding="8dp"
-                android:visibility="gone">
+                <ImageButton
+                    android:id="@+id/btnSwitchCamera"
+                    android:layout_width="35dp"
+                    android:layout_height="35dp"
+                    android:layout_gravity="top|end"
+                    android:layout_margin="8dp"
+                    android:background="#80000000"
+                    android:src="@android:drawable/ic_menu_rotate"
+                    app:tint="#FFFFFF" />
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="⚙️ Configurar Origen QR"
-                    android:textColor="#00E676"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
+                <org.videolan.libvlc.util.VLCVideoLayout
+                    android:id="@+id/vlcQrSurfaceFallback"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone" />
 
-                <Button
-                    android:id="@+id/btnCambiarA_IP"
-                    android:layout_width="wrap_content"
-                    android:layout_height="32dp"
-                    android:layout_marginTop="4dp"
-                    android:text="Usar Cámara IP (RTSP)"
-                    android:textSize="10sp" />
-            </LinearLayout>
-        </RelativeLayout>
+                <LinearLayout
+                    android:id="@+id/layoutFixCamaraQr"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="#E6161B22"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+                    <Button android:id="@+id/btnCambiarA_IP" android:layout_width="wrap_content" android:layout_height="32dp" android:text="USAR RTSP" android:textSize="9sp" />
+                </LinearLayout>
+            </FrameLayout>
+        </com.google.android.material.card.MaterialCardView>
     </LinearLayout>
 
     <androidx.constraintlayout.widget.Guideline
@@ -273,156 +205,155 @@
         android:orientation="vertical"
         app:layout_constraintGuide_percent="0.40" />
 
-    <!-- COLUMNA DERECHA: ASISTENTE PASO A PASO SECCIONAL -->
-    <LinearLayout
+    <!-- COLUMNA DERECHA: Interacción (Cerebro de la UI) -->
+    <com.google.android.material.card.MaterialCardView
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:layout_marginStart="8dp"
         android:layout_marginTop="8dp"
-        android:background="#1E1E1E"
-        android:orientation="vertical"
-        android:padding="12dp"
+        app:cardBackgroundColor="#161B22"
+        app:cardCornerRadius="20dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/guidelineCentro"
         app:layout_constraintTop_toBottomOf="@id/headerTop">
 
-        <TextView
-            android:id="@+id/lblHistorialDatos"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Datos:"
-            android:textAllCaps="false"
-            android:textColor="@color/material_dynamic_neutral99"
-            android:textStyle="italic" />
-
-        <!-- Instrucción actual en Letras Grandes -->
-        <TextView
-            android:id="@+id/lblInstruccionSeccion"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            android:text="1. Seleccione el Motivo de Ingreso:"
-            android:textColor="#FFFFFF"
-            android:textSize="22sp"
-            android:textStyle="bold" />
-
-        <!-- Subtítulos de lo que dice/escucha Gemini -->
-        <TextView
-            android:id="@+id/lblSubtitulosAsistente"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            android:text="🤖 Escuchando..."
-            android:textColor="#FFEB3B"
-            android:textSize="14sp"
-            android:textStyle="italic" />
-
-        <!-- CONTENEDOR DINÁMICO: Grid de Botones Inyectados por Código -->
-        <ScrollView
-            android:id="@+id/ScrollViewGridBotones"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            tools:visibility="gone">
-
-            <com.google.android.material.chip.ChipGroup
-                android:id="@+id/containerGridBotones"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:itemSpacing="12dp"
-                app:lineSpacing="12dp"
-                app:singleSelection="true" />
-        </ScrollView>
-
-        <!-- Campo de entrada alternativo para teclado manual (Nombre / Placas) -->
-        <EditText
-            android:id="@+id/txtInputManual"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            android:background="@color/white"
-            android:inputType="textCapCharacters"
-            android:textAlignment="center"
-            android:textColor="#050505"
-            android:textSize="34sp"
-            android:visibility="visible" />
-
-        <!-- Barra inferior de acciones globales -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:weightSum="2">
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="16dp">
 
-            <Button
-                android:id="@+id/btnReiniciarRegistro"
-                android:layout_width="0dp"
+            <TextView
+                android:id="@+id/lblHistorialDatos"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="6dp"
-                android:layout_weight="1"
-                android:backgroundTint="#424242"
-                android:text="Reiniciar / Error 🔄" />
+                android:text="PENDIENTE"
+                android:textColor="#8B949E"
+                android:textSize="11sp"
+                android:textStyle="italic" />
 
-            <Button
-                android:id="@+id/btnSiguientePasoManual"
-                android:layout_width="0dp"
+            <TextView
+                android:id="@+id/lblInstruccionSeccion"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:layout_weight="1"
-                android:text="Siguiente ➡️" />
+                android:text="Seleccione motivo"
+                android:textColor="#FFFFFF"
+                android:textSize="22sp"
+                android:fontFamily="sans-serif-medium" />
 
+            <TextView
+                android:id="@+id/lblSubtitulosAsistente"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_ai_bubble"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp"
+                android:text="🤖 Escuchando..."
+                android:textColor="#00D4FF"
+                android:textSize="13sp" />
+
+            <ScrollView
+                android:id="@+id/ScrollViewGridBotones"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginTop="12dp"
+                android:layout_weight="1">
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/containerGridBotones"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:chipSpacingVertical="4dp"
+                    app:chipSpacingHorizontal="8dp" />
+            </ScrollView>
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/layoutInputManual"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                app:boxStrokeColor="#00D4FF"
+                app:hintEnabled="false">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/txtInputManual"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textCapCharacters"
+                    android:textColor="#FFFFFF"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnReiniciarRegistro"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:layout_width="0dp"
+                    android:layout_height="50dp"
+                    android:layout_weight="1"
+                    android:text="REINICIAR"
+                    android:textColor="#FF5252" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSiguientePasoManual"
+                    android:layout_width="0dp"
+                    android:layout_height="50dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    app:cornerRadius="8dp"
+                    android:text="CONTINUAR"
+                    android:backgroundTint="#00D4FF" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/lbStatusAsistente"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Estado: Standby"
+                android:textAlignment="viewEnd"
+                android:textColor="#03A9F4"
+                android:textSize="10sp" />
         </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
 
-        <TextView
-            android:id="@+id/lbStatusAsistente"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Estado asistente"
-            android:textAlignment="viewEnd"
-            android:textAppearance="@style/TextAppearance.AppCompat.Small"
-            android:textColor="#03A9F4"
-            android:textStyle="italic" />
-
-    </LinearLayout>
+    <!-- PANELES DE ESTADO (Splash y Resultados) -->
 
     <FrameLayout
         android:id="@+id/layoutVisualEstatusDerecho"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:padding="24dp"
-        android:visibility="gone"
-        tools:layout_editor_absoluteX="314dp"
-        tools:layout_editor_absoluteY="269dp"
-        tools:visibility="visible">
-
+        android:elevation="50dp"
+        android:visibility="gone">
         <LinearLayout
             android:id="@+id/panelColorContenedor"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="?attr/popupMenuBackground"
+            android:background="#E60A0E14"
             android:gravity="center"
-            android:orientation="vertical"
-            android:visibility="visible"> <!-- Managed dynamically in code -->
-
+            android:orientation="vertical">
             <TextView
                 android:id="@+id/tvEstatusGrande"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:gravity="center"
                 android:text="AUTORIZADO"
-                android:textSize="56sp"
+                android:textColor="#00E676"
+                android:textSize="64sp"
                 android:textStyle="bold" />
-
             <TextView
                 android:id="@+id/tvEstatusDetallePeque"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:gravity="center"
-                android:paddingHorizontal="16dp"
-                android:text="Razón: Ingreso Estándar"
-                android:textSize="22sp" />
+                android:text="Bienvenido al Condominio"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp" />
         </LinearLayout>
     </FrameLayout>
 
@@ -430,33 +361,34 @@
         android:id="@+id/layoutSplash"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#5CD563"
+        android:background="@drawable/bg_splash_gradient"
         android:clickable="true"
         android:elevation="100dp"
         android:focusable="true"
-        android:visibility="gone"
-        tools:layout_editor_absoluteX="8dp"
-        tools:layout_editor_absoluteY="8dp">
-
+        android:visibility="gone">
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
+            android:gravity="center"
             android:orientation="vertical">
-
             <ImageView
-                android:layout_width="300dp"
-                android:layout_height="300dp"
-                android:src="@drawable/logo" /> <!-- Tu logo o Gif -->
-
+                android:layout_width="220dp"
+                android:layout_height="220dp"
+                android:src="@drawable/logo" />
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center"
                 android:text="¡HOLA!"
                 android:textColor="#FFFFFF"
                 android:textSize="80sp"
                 android:textStyle="bold" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Toque la pantalla o diga HOLA"
+                android:textColor="#8B949E"
+                android:textSize="18sp" />
         </LinearLayout>
     </FrameLayout>
 
