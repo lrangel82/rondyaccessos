@@ -1,6 +1,7 @@
 package com.larangel.rondyaccesos.vehicular
 
 import com.larangel.rondyaccesos.models.CaptureStep
+import com.larangel.rondyaccesos.models.TipoAccesos
 import com.larangel.rondyaccesos.models.network.WhatsappAuthStatus
 import kotlinx.serialization.Serializable
 
@@ -12,6 +13,7 @@ data class IngresoVehicularUiState(
     val calleInput: String = "",
     val numeroInput: String = "",
     val tipoInput: String = "",
+    val motivoInput: TipoAccesos? = null,
     val conductorInput: String = "",
     val descripcionInput: String = "",
     val status: String = "",

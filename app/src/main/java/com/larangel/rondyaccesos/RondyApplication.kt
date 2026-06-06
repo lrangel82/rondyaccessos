@@ -16,7 +16,7 @@ class RondyApplication : Application() {
     // Ámbito de corrutinas global que sobrevivirá a cualquier pantalla
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    var registroCallbackActivo: ((calle: String, numero: String, nombre: String, tipo: String, placa: String) -> Unit)? = null
+    var registroCallbackActivo: ((calle: String, numero: String, nombre: String, motivo: String, placa: String) -> Unit)? = null
     var imagenesCallBackActivo: ((String) -> Bitmap?)? = null
 
     // Instancias únicas inicializadas de forma perezosa (Lazy)
@@ -31,10 +31,10 @@ class RondyApplication : Application() {
         val apiKey = mySettings.getString("GEMINI_API_KEY", "")
         //val apiKey =""
 
-        GeminiVoiceAssistant(applicationContext, apiKey) { calle, numero, nombre, tipo, placa ->
+        GeminiVoiceAssistant(applicationContext, apiKey, dataRawRondin) { calle, numero, nombre, motivo, placa ->
             /// 🚀 INTERCEPTION TRICK: Forward the extraction payload directly
             // to whichever ViewModel has its callback currently registered!
-            registroCallbackActivo?.invoke(calle, numero, nombre, tipo, placa)
+            registroCallbackActivo?.invoke(calle, numero, nombre, motivo, placa)
         }
     }
 

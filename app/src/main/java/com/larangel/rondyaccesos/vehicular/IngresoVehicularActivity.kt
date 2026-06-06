@@ -565,7 +565,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
                         }
 
                         CaptureStep.CAPTURA_PLACA -> {
-                            controlarEstadoMicrofono(habilitar = false)
+                            controlarEstadoMicrofono(habilitar = true)
                             binding.lblInstruccionSeccion.text = "5. Ingrese Matrícula Vehicular:"
                             binding.ScrollViewGridBotones.visibility = View.GONE
                             binding.txtInputManual.visibility = View.VISIBLE

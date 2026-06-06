@@ -139,8 +139,8 @@ class IngresoVehicularViewModel(
         }
         //Register this ViewModel's pipeline processor to the Application scope
         val app = getApplication<RondyApplication>()
-        app.registroCallbackActivo = { calle, numero, nombre, tipo, placa ->
-            procesarEntidadesExtraidasPorGemini(calle, numero, nombre, tipo, placa)
+        app.registroCallbackActivo = { calle, numero, nombre, motivo, placa ->
+            procesarEntidadesExtraidasPorGemini(calle, numero, nombre, motivo, placa)
         }
         controlarCicloDeVidaDeStreaming()
         // Solo menciona la frase si el flag está activo (post-registro)
@@ -174,7 +174,7 @@ class IngresoVehicularViewModel(
                 if (_uiState.value.segundosRestantes == 0) {
                     withContext(Dispatchers.Main) {
                         _uiState.update { it.copy(mostrarSplash = true) }
-                        reiniciarAsistenteCompleto()
+                        //reiniciarAsistenteCompleto()
                     }
                 }
             } catch (e: CancellationException) {
@@ -189,6 +189,7 @@ class IngresoVehicularViewModel(
             // Al despertar por toque o voz "Hola", sí damos la bienvenida
             geminiVoiceAssistant.forzarLocucionPorAltavoz("Bienvenido al condominio. Indique el motivo de su visita.")
             iniciarTimerInactividad()
+            reiniciarAsistenteCompleto()
         }
     }
 
@@ -448,6 +449,7 @@ class IngresoVehicularViewModel(
     fun seleccionarMotivo(sel_motivo: String) {
         iniciarTimerInactividad()
 
+        //Buscar motivo en listado
         val motivo = listadoMotivosPredefinidos.find{ it.name.uppercase() == sel_motivo.uppercase() || it.name.contains(sel_motivo,ignoreCase = true) || sel_motivo.contains(it.name,ignoreCase = true) }
         if (motivo != null ) {
 
@@ -470,6 +472,7 @@ class IngresoVehicularViewModel(
                     _uiState.update {
                         it.copy(
                             tipoInput = motivo.name,
+                            motivoInput = motivo,
                             calleInput = calledom,
                             numeroInput = numero,
                             conductorInput = "SERVICIO PÚBLICO / EMERGENCIA",
@@ -492,7 +495,8 @@ class IngresoVehicularViewModel(
             else{
                 //MOTIVO VALIDO
                 _uiState.update { it.copy(
-                    tipoInput = motivo.name
+                    tipoInput = motivo.name,
+                    motivoInput = motivo,
                 ) }
                 //hay domicilio default en el motivo? y esta vacio
                 if (motivo.calleDefault.isNotEmpty() && motivo.numeroDefault.isNotEmpty() && (_uiState.value.calleInput.isEmpty() || _uiState.value.numeroInput.isEmpty())) {
@@ -533,8 +537,7 @@ class IngresoVehicularViewModel(
     fun seleccionarNumero(numero: String) {
         iniciarTimerInactividad()
         // 1. Validar si el motivo actual seleccionado es Paquetería
-        val motivo = listadoMotivosPredefinidos.find{ it.name.uppercase() == _uiState.value.tipoInput.uppercase() || it.name.contains(_uiState.value.tipoInput,ignoreCase = true) || _uiState.value.tipoInput.contains(it.name,ignoreCase = true) }
-        if (motivo?.variosDomicilios ?: false ) {
+        if (_uiState.value.motivoInput?.variosDomicilios ?: false ) {
             // 🚀 DESVÍO: En lugar de pasar a pedir el nombre, mandamos esta dirección a la lista interna
             // Pasamos la calle que ya estaba guardada en el estado y el número que acaba de llegar
             registrarDireccionPaqueteriaActualYPreguntar(_uiState.value.calleInput, numero)
@@ -554,8 +557,7 @@ class IngresoVehicularViewModel(
     fun confirmarDireccion(respuesta: String){
         iniciarTimerInactividad()
         if (respuesta.contains("SI")){
-            val motivo = listadoMotivosPredefinidos.find{ it.name.uppercase() == _uiState.value.tipoInput.uppercase() || it.name.contains(_uiState.value.tipoInput,ignoreCase = true) || _uiState.value.tipoInput.contains(it.name,ignoreCase = true) }
-            if (motivo?.variosDomicilios ?: false ) {
+            if (_uiState.value.motivoInput?.variosDomicilios ?: false ) {
                 // Si el reingreso inteligente detecta paquetería, registramos esa primera casa y preguntamos por más
                 registrarDireccionPaqueteriaActualYPreguntar(_uiState.value.calleInput, _uiState.value.numeroInput)
             } else {
@@ -635,8 +637,7 @@ class IngresoVehicularViewModel(
     fun guardarPlacaYSolicitarAutorizacion(placa: String){
         _uiState.update { it.copy(placaInput = placa) }
 
-        val motivo = listadoMotivosPredefinidos.find{ it.name.uppercase() == _uiState.value.tipoInput.uppercase() || it.name.contains(_uiState.value.tipoInput,ignoreCase = true) || _uiState.value.tipoInput.contains(it.name,ignoreCase = true) }
-        if (motivo!= null && motivo.variosDomicilios && _uiState.value.direccionesPaqueteria.size > 1) {
+        if (_uiState.value.motivoInput!= null && _uiState.value.motivoInput!!.variosDomicilios && _uiState.value.direccionesPaqueteria.size > 1) {
             // CASO ESPECIAL: Es un recorrido. No se pide autorización, se procesan ráfagas de inserción
             if (!flujoResuelto.compareAndSet(false, true)) return
             timerJob?.cancel()
@@ -691,7 +692,6 @@ class IngresoVehicularViewModel(
         // Si ya está procesando una autorización, congelamos cambios de pasos
         if (estadoActual.currentStep == CaptureStep.PROCESANDO_AUTORIZACION) return
 
-        val motivo = listadoMotivosPredefinidos.find{ it.name.uppercase() == _uiState.value.tipoInput.uppercase() || it.name.contains(_uiState.value.tipoInput,ignoreCase = true) || _uiState.value.tipoInput.contains(it.name,ignoreCase = true) }
         when {
             estadoActual.tipoInput.isEmpty() -> {
                 geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme el motivo de su ingreso, porfavor.")
@@ -699,7 +699,7 @@ class IngresoVehicularViewModel(
             }
 
             // Si es paquetería y no ha capturado ninguna dirección en la lista, pide la primera
-            motivo?.variosDomicilios == true  && estadoActual.direccionesPaqueteria.isEmpty() && estadoActual.calleInput.isEmpty() -> {
+            _uiState.value.motivoInput?.variosDomicilios == true  && estadoActual.direccionesPaqueteria.isEmpty() && estadoActual.calleInput.isEmpty() -> {
                 geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme la calle del domicilio.")
                 _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_CALLE) }
             }
@@ -710,12 +710,12 @@ class IngresoVehicularViewModel(
             }
 
             // Para cualquier otro motivo que no tenga dirección capturada
-            motivo?.variosDomicilios != true && estadoActual.calleInput.isEmpty() -> {
+            _uiState.value.motivoInput?.variosDomicilios != true && estadoActual.calleInput.isEmpty() -> {
                 geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme la calle del domicilio.")
                 _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_CALLE) }
             }
 
-            motivo?.variosDomicilios != true && estadoActual.numeroInput.isEmpty() -> {
+            _uiState.value.motivoInput?.variosDomicilios != true && estadoActual.numeroInput.isEmpty() -> {
                 geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme el numero del domicilio.")
                 _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_NUMERO) }
             }
@@ -761,6 +761,7 @@ class IngresoVehicularViewModel(
                             placaInput = placaDetectada,
                             conductorInput = conductor,
                             tipoInput = matchTipo.name,
+                            motivoInput = matchTipo,
                             calleInput = calle, // Reset addressing for app-based services
                             numeroInput = numero,
                             subtitulosAsistente = "Bienvenido de nuevo ${conductor}.",
@@ -768,7 +769,8 @@ class IngresoVehicularViewModel(
                         )
                     }
                     geminiVoiceAssistant.forzarLocucionPorAltavoz("Bienvenido de nuevo ${conductor}. ¿A qué domicilio se dirige hoy?")
-                } else {
+                }
+                else {
                     // Visits or Residents without electronic TAGs y que no tenga ya capturado estos datos
                     val calle = if (_uiState.value.calleInput.isNotEmpty()) _uiState.value.calleInput else ultimoRegistro[3].toString()
                     val numero = if (_uiState.value.numeroInput.isNotEmpty()) _uiState.value.numeroInput else ultimoRegistro[4].toString()
@@ -777,6 +779,7 @@ class IngresoVehicularViewModel(
                             placaInput = placaDetectada,
                             conductorInput = conductor,
                             tipoInput = tipo,
+                            motivoInput = matchTipo,
                             calleInput = calle,
                             numeroInput = numero,
                             subtitulosAsistente = "Bienvenido de nuevo ${conductor}.",
@@ -861,7 +864,40 @@ class IngresoVehicularViewModel(
 
             }
 
-            // 3. Fallback: Base authorization flow sequence if no flags are triggered
+            // 3. Permisos
+            if(_uiState.value.motivoInput?.RequierePermisoAdmon == true){
+                val permisosHoy = dataRaw.getPermisosCache_DeHoy()
+                val permisoDom = permisosHoy.find {
+                    it[1].toString().equalsIgnoreCase(calle) && it[2].toString().toString().equalsIgnoreCase(numero)
+                }
+                //El permiso esta Denegado o no existe?
+                if (permisoDom == null || "1 Si si X".contains(permisoDom[11].toString(), ignoreCase = true) == false) {
+                    val motivoDenegacion = "No hay PERMISO activo para $calle $numero"
+                    _uiState.update {
+                        it.copy(
+                            mostrarPanelResultadoDerecho = true,
+                            resultadoEsAutorizado = false,
+                            status = "DENEGADO",
+                            descripcionInput = motivoDenegacion
+                        )
+                    }
+                    withContext(Dispatchers.Main) {
+                        ejecutarGuardadoTransaccionalFinal(_uiState.value)
+                        _whatsappStatus.value = WhatsappAuthStatus.Denegado
+                        geminiVoiceAssistant.forzarLocucionPorAltavoz(
+                            "Lo siento el residente no tiene permiso activo para el ingreso de Trabajos o Mudanzas. " +
+                                    "Comuníquese con el residente para que el mismo vaya a abrir la pluma. " +
+                                    "Por favor, muévase de la fila para permitir que otros autos ingresen y estaciónese donde no estorbe el flujo vehicular."
+                        )
+                        delay(10000)
+                        reiniciarAsistenteCompleto()
+                    }
+                    return@launch
+                }
+            }
+
+
+            // 4. Fallback: Base authorization flow sequence if no flags are triggered
             iniciarFlujoAutorizacionWhatsapp()
 
         }
@@ -1101,9 +1137,7 @@ class IngresoVehicularViewModel(
         val state = _uiState.value.copy()
         val telefonosArray = dataRaw.getWhatsappTelefonosDomicilio(state.calleInput, state.numeroInput)
         val domicilio_data = dataRaw.getDomiciliosSimilares(state.calleInput, state.numeroInput).firstOrNull()
-        val tokenApi = "Bearer " + mySettings.getString("TOKEN_API_BOTCASETA", "")
         val telFijo = if (!domicilio_data.isNullOrEmpty() && domicilio_data.size >= 6 ) domicilio_data.get(5).toString().telefonoParaTwilio() else ""
-        val motivo = listadoMotivosPredefinidos.find{ it.name.uppercase() == _uiState.value.tipoInput.uppercase() || it.name.contains(_uiState.value.tipoInput,ignoreCase = true) || _uiState.value.tipoInput.contains(it.name,ignoreCase = true) }
 
 
         // Cancelar de forma segura cualquier hilo o residuo visual anterior
@@ -1143,11 +1177,11 @@ class IngresoVehicularViewModel(
                 if (flujoIVRDisparado.get()) msg = msg + "\n Llamado a residente..."
                 if (flujoWhatsAppDisparado.get()) msg = msg + "\n Enviando Whatsapp residente..."
                 if (flujoSocketCasetaDisparado.get()) msg = msg + "\n Preguntando Autorizacion Guardia Caseta..."
-                if (telefonosArray.isEmpty() && !telFijo.isNullOrEmpty()) {
+                //if (telefonosArray.isEmpty() && !telFijo.isNullOrEmpty()) {
                     _whatsappStatus.update {
                         WhatsappAuthStatus.Info(msg)
                     }
-                }
+                //}
                 _uiState.update { it.copy(
                     currentStep = CaptureStep.PROCESANDO_AUTORIZACION,
                     tiempoTranscurrido = elapsedSeconds
@@ -1164,18 +1198,18 @@ class IngresoVehicularViewModel(
 
                     // SUB-HILO 1: Espera pasiva de 1 minuto para activar el Socket de Caseta
                     launch {
-                        if (motivo == null || motivo.autorizadoPorCaseta == false)
+                        if (_uiState.value.motivoInput == null || _uiState.value.motivoInput!!.autorizadoPorCaseta == false)
                             delay(60_000L) //Si se autoriza por caseta se lanza de inmediato el flujo
                         dispararSocketCasetaManual(state)
                     }
 
-                    if (motivo == null || motivo.autorizadoPorCaseta == false) {
+                    if (_uiState.value.motivoInput == null || _uiState.value.motivoInput!!.autorizadoPorCaseta == false) {
                         // EVALUACIÓN DE INICIO: ¿Tenemos infraestructura telefónica para WhatsApp?
                         if (telefonosArray.isEmpty()) {
                             //Hay telefono fijo?
                             if (!telFijo.isNullOrEmpty()) {
                                 // ESPECIFICACIÓN: Si no hay números de WhatsApp, el IVR se dispara al instante
-                                launch { lanzarFlujoIVRSeguro(state, tokenApi) }
+                                launch { lanzarFlujoIVRSeguro(state) }
                             } else {
                                 withContext(Dispatchers.Main) {
                                     _whatsappStatus.value =
@@ -1189,13 +1223,13 @@ class IngresoVehicularViewModel(
                         } else {
                             // SUB-HILO 2: Ciclo de consulta frecuente (Polling) de WhatsApp
                             launch {
-                                ejecutarSondeoWhatsApp(state, telefonosArray, tokenApi)
+                                ejecutarSondeoWhatsApp(state, telefonosArray)
                             }
 
                             // SUB-HILO 3: ESPECIFICACIÓN: Esperar 30 segundos pasivos antes de respaldar con IVR
                             launch {
                                 delay(30_000L)
-                                lanzarFlujoIVRSeguro(state, tokenApi)
+                                lanzarFlujoIVRSeguro(state)
                             }
                         }
                     } // Fin if (motivo == null || motivo.autorizadoPorCaseta == false) Solo caseta autoriza
@@ -1206,16 +1240,18 @@ class IngresoVehicularViewModel(
             }
         }
     }
-    private suspend fun ejecutarSondeoWhatsApp(state: IngresoVehicularUiState, telefonosArray: List<List<Any>>, tokenApi: String) {
+    private suspend fun ejecutarSondeoWhatsApp(state: IngresoVehicularUiState, telefonosArray: List<List<Any>>) {
         if (flujoWhatsAppDisparado.compareAndSet(false, true) == false) return //Indicar que ya se disparo
+        val tokenApi = "Bearer " + mySettings.getString("TOKEN_API_BOTCASETA", "")
         var segundosRestantes = 180
+        var contadorErrores = 0
 
         while (currentCoroutineContext().isActive && !flujoResuelto.get() && segundosRestantes > 0) {
-            _uiState.update { currentState ->
-                if (currentState.whatsappStatus is WhatsappAuthStatus.Solicitando) {
-                    currentState.copy(whatsappStatus = (currentState.whatsappStatus as WhatsappAuthStatus.Solicitando).copy(segundos = segundosRestantes))
-                } else currentState
-            }
+//            _uiState.update { currentState ->
+//                if (currentState.whatsappStatus is WhatsappAuthStatus.Solicitando) {
+//                    currentState.copy(whatsappStatus = (currentState.whatsappStatus as WhatsappAuthStatus.Solicitando).copy(segundos = segundosRestantes))
+//                } else currentState
+//            }
 
             // Ejecutar bloque cada 3 segundos de forma exacta
             if (segundosRestantes % 3 == 0) {
@@ -1232,9 +1268,16 @@ class IngresoVehicularViewModel(
                         val response = apiService.validarVisita(tokenApi, requestPayload)
 
                         if (!response.isSuccessful) {
-                            // ESPECIFICACIÓN: Si la API falla, activa Socket Caseta de inmediato y rompe el flujo
-                            manejarFalloCriticoEnCanal(state, "Error API validar_visita: ${response.code()}")
-                            return
+                            contadorErrores++
+                            if (contadorErrores > 10) {
+                                // ESPECIFICACIÓN: Si la API falla, activa Socket Caseta de inmediato y rompe el flujo
+                                manejarFalloCriticoEnCanal(
+                                    state,
+                                    "Error API validar_visita: ${response.code()}"
+                                )
+                                Log.e("sondeoWhatsApp", "Error API validar_visita: ${response.code()}")
+                                return
+                            }
                         }
 
                         val body = response.body() ?: continue
@@ -1271,9 +1314,16 @@ class IngresoVehicularViewModel(
                             }
                         }
                     } catch (e: Exception) {
-                        // ESPECIFICACIÓN: Si hay caída de red/excepción, dispara Socket Caseta al instante
-                        manejarFalloCriticoEnCanal(state, "Fallo de conexión en red en WhatsApp: ${e.message}")
-                        return
+                        contadorErrores++
+                        if (contadorErrores > 10) {
+                            // ESPECIFICACIÓN: Si hay caída de red/excepción, dispara Socket Caseta al instante
+                            manejarFalloCriticoEnCanal(
+                                state,
+                                "Fallo de conexión en red en WhatsApp: ${e.message}"
+                            )
+                            Log.e("sondeoWhatsApp", "Fallo de conexión en red en WhatsApp: ${e.message}")
+                            return
+                        }
                     }
                 }
             }
@@ -1281,8 +1331,9 @@ class IngresoVehicularViewModel(
             segundosRestantes--
         }
     }
-    private suspend fun lanzarFlujoIVRSeguro(state: IngresoVehicularUiState, tokenApi: String) {
+    private suspend fun lanzarFlujoIVRSeguro(state: IngresoVehicularUiState) {
         if (flujoIVRDisparado.compareAndSet(false, true) == false) return //Indicar que ya se disparo
+        val tokenApi = "Bearer " + mySettings.getString("TOKEN_API_BOTCASETA", "")
 
         var segundosRestantes = 180
         val telefonosArray = dataRaw.getWhatsappTelefonosDomicilio(state.calleInput, state.numeroInput)
@@ -1645,6 +1696,7 @@ class IngresoVehicularViewModel(
             // --- PASO 0: MOTIVO ---
             if (tipo.isNotEmpty() && _uiState.value.tipoInput != tipo) {
 
+                //Buscar motivo en listado
                 val motivo = listadoMotivosPredefinidos.find{ it.name.uppercase() == tipo.uppercase() || it.name.contains(tipo,ignoreCase = true) || tipo.contains(it.name,ignoreCase = true) }
                 if (motivo != null) {
                     // Caso Especial: Excepción Inmediata sin Dirección
@@ -1666,6 +1718,7 @@ class IngresoVehicularViewModel(
                             _uiState.update {
                                 it.copy(
                                     tipoInput = motivo.name,
+                                    motivoInput = motivo,
                                     calleInput = calledom,
                                     numeroInput = numero,
                                     conductorInput = "SERVICIO PÚBLICO / EMERGENCIA",
@@ -1690,7 +1743,8 @@ class IngresoVehicularViewModel(
                         //MOTIVO VALIDO
                         withContext(Dispatchers.Main) {
                             _uiState.update { it.copy(
-                                tipoInput = motivo.name
+                                tipoInput = motivo.name,
+                                motivoInput = motivo
                             ) }
                         }
                         //hay domicilio default en el motivo? y esta vacio
@@ -1710,7 +1764,8 @@ class IngresoVehicularViewModel(
                         _uiState.update { it.copy(
                             subtitulosAsistente = "🤖 No reconozco el motivo '$tipo'. Elija uno de la lista.",
                             currentStep = CaptureStep.SELECCION_MOTIVO,
-                            tipoInput = ""
+                            tipoInput = "",
+                            motivoInput = null
                         ) }
                     }
                     return@launch
@@ -1736,8 +1791,7 @@ class IngresoVehicularViewModel(
                             val calleVerificada = matchExacto[0].toString()
                             val numeroVerificado = matchExacto[1].toString()
 
-                            val motivo = listadoMotivosPredefinidos.find{ it.name.uppercase() == _uiState.value.tipoInput.uppercase() || it.name.contains(_uiState.value.tipoInput,ignoreCase = true) || _uiState.value.tipoInput.contains(it.name,ignoreCase = true) }
-                            if (motivo?.variosDomicilios == true) {
+                            if (_uiState.value.motivoInput?.variosDomicilios == true) {
                                 // 🚀 REGLA UNIFICADA: Interceptamos y mandamos al bucle multidireccional de paquetería
                                 registrarDireccionPaqueteriaActualYPreguntar(calleVerificada, numeroVerificado)
                             } else {

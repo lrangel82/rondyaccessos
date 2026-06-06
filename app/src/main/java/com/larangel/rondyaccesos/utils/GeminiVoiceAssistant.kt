@@ -13,11 +13,14 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.util.Locale
 import com.google.ai.client.generativeai.type.generationConfig
+import com.larangel.rondyaccesos.models.DataRawRondin
+import com.larangel.rondyaccesos.models.TipoAccesos
 
 class GeminiVoiceAssistant(
     private val context: Context,
     private val apiKey: String,
-    private val onDataExtracted: (calle: String, numero: String, nombre: String, tipo: String, placa: String) -> Unit
+    private val dataRaw: DataRawRondin,
+    private val onDataExtracted: (calle: String, numero: String, nombre: String, motivo: String, placa: String) -> Unit
 ) : TextToSpeech.OnInitListener {
 
     private var tts: TextToSpeech = TextToSpeech(context, this)
@@ -27,8 +30,13 @@ class GeminiVoiceAssistant(
     private val _subtitulosState = MutableStateFlow("")
     val subtitulosState: StateFlow<String> get() = _subtitulosState
 
+    //Tipos / Motivos
+    var listadoMotivosPredefinidos: List<TipoAccesos> = emptyList()
+
     init {
         if (apiKey.isNotEmpty()) {
+            listadoMotivosPredefinidos = dataRaw.getTiposAccesos()
+            val textoAccesos = listadoMotivosPredefinidos.joinToString(", ") { it.name }
             generativeModel = GenerativeModel(
                 modelName = "gemini-2.5-flash-lite",
                 apiKey = apiKey,
@@ -36,13 +44,14 @@ class GeminiVoiceAssistant(
                     text("Eres un asistente inteligente por voz para la caseta de vigilancia del condominio. " +
                             "Debes hablarle de manera clara y amable al visitante. " +
                             "Tu objetivo es preguntarle a qué calle, número de casa va, cuál es su nombre y el motivo de su visita. " +
-                            "el motivo de la visita debe ser alguno de los siguientes [\"Visitante\", \"Uber/Taxi\", \"Residente sin tag\", \"Paqueteria\", \"Gas\", \"ComidaADomicilio\", \"Policia\", \"Camion Basura\", \"Grua\", \"Ambulancia\"]" +
+                            "el motivo de la visita debe ser alguno de los siguientes [${textoAccesos}], " +
+                            "las placas pueden estar deletreadas y seguiran las reglas de este regex \"([A-Z]{3}[0-9]{3,4}[A-Z]?|[0-9]{2}[A-Z][0-9]{3}|[0-9]{3}[A-Z]{3}|[A-Z]{2}[0-9]{4,5}[A-Z]?|[A-Z][0-9]{4}|[A-Z][0-9]{2}[A-Z]{2,3}|[A-Z]{3}[0-9][A-Z]|[A-Z]{5}[0-9]{2})\" " +
                             "Siempre debes responder en formato JSON plano con dos llaves estrictas: " +
                             "1) 'speech': El texto corto y amigable que le dirás en voz alta al visitante. " +
-                            "2) 'extracted_data': Un objeto con las llaves 'calle', 'numero', 'nombre', 'tipo', 'placa' extraídas de la conversación. " +
+                            "2) 'extracted_data': Un objeto con las llaves 'calle', 'numero', 'nombre', 'motivo', 'placa' extraídas de la conversación. " +
                             "Si el campo aún no se conoce, déjalo vacío ''. Ejemplo de respuesta: " +
                             "{\"speech\": \"Bienvenido, ¿cual es el motivo de su visita?\", \"extracted_data\": {\"calle\":\"\",\"numero\":\"\",\"nombre\":\"\",\"motivo\":\"\",\"placa\":\"\"}} " +
-                            "El orden para solicitar informacion faltante debe ser el siguiente siempre [tipo,calle,numero,nombre,placa]."
+                            "El orden para solicitar informacion faltante debe ser el siguiente siempre [motivo,calle,numero,nombre,placa]."
                     )
                 },
                 generationConfig = generationConfig {
@@ -67,7 +76,7 @@ class GeminiVoiceAssistant(
         val prompt = "Conversación actual del visitante: '$transcripcionVigilanteOVisita'. " +
                 "Estructura de datos acumulados hasta ahora: $datosActualesJson. " +
                 "Analiza la entrada de voz, actualiza el JSON y genera la siguiente locución corta para el visitante. " +
-                "El orden para solicitar informacion faltante debe ser el siguiente siempre [tipo,calle,numero,nombre,placa]. " +
+                "El orden para solicitar informacion faltante debe ser el siguiente siempre [motivo,calle,numero,nombre,placa]. " +
                 "Si se tiene todos los datos indicar que se esta solicitando autorizacion"
 
         try {
