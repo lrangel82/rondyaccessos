@@ -3,9 +3,9 @@ package com.larangel.rondyaccesos.models.com.larangel.rondyaccesos.peatonal
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.larangel.rondyaccesos.RondyApplication
 import com.larangel.rondyaccesos.models.AccesoBitacora
 import com.larangel.rondyaccesos.models.sockets.MessageType
-import com.larangel.rondyaccesos.models.sockets.RondySocketClient
 import com.larangel.rondyaccesos.models.sockets.SocketMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,7 +35,7 @@ class IngresoPeatonalViewModel(application: Application) : AndroidViewModel(appl
     private val _uiState = MutableStateFlow(PeatonalUiState())
     val uiState: StateFlow<PeatonalUiState> = _uiState.asStateFlow()
 
-    private val socketClient = RondySocketClient()
+    private val networkManager = getApplication<RondyApplication>().networkManager
     private val registroMutex = Mutex()
 
     fun onCalleChanged(valor: String) { _uiState.update { it.copy(calle = valor) } }
@@ -103,8 +103,7 @@ class IngresoPeatonalViewModel(application: Application) : AndroidViewModel(appl
                 _uiState.update { it.copy(mensajeSuperior = "Sincronizando registro con caseta principal...") }
 
                 // Transmisión asíncrona local vía Ktor Sockets hacia la Caseta Central (Padre)
-                val mensajeSocket = SocketMessage(MessageType.REGISTRO_INGRESO, "client_ip", "INGRESO_PEATONAL", registroPeatonal)
-                socketClient.enviarRegistroACaseta(mensajeSocket)
+                networkManager.replicarIngreso(registroPeatonal)
 
                 // Persistir localmente usando tu esquema DataRawRondin para subida diferida
                 // dataRawRondin.sync(SheetTable.BITACORA_ACCESOS, Operation.APPEND, ...)

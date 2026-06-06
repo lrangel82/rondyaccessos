@@ -4,10 +4,10 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.larangel.rondyaccesos.RondyApplication
 import com.larangel.rondyaccesos.databinding.ActivityContactoExpressSalidaBinding
 import com.larangel.rondyaccesos.models.AccesoBitacora
 import com.larangel.rondyaccesos.models.sockets.MessageType
-import com.larangel.rondyaccesos.models.sockets.RondySocketClient
 import com.larangel.rondyaccesos.models.sockets.SocketMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -18,7 +18,8 @@ import java.time.format.DateTimeFormatter
 class ContactoExpressSalidaActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityContactoExpressSalidaBinding
-    private val socketClient = RondySocketClient()
+    //private val socketClient = RondySocketClient()
+    //private val networkManager = getApplication<RondyApplication>().networkManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,8 +66,8 @@ class ContactoExpressSalidaActivity : AppCompatActivity() {
                 )
 
                 // 2. Transmitir el JSON de Regularización a la Caseta Central (Padre) vía TCP
-                val msgSocket = SocketMessage(MessageType.REGISTRO_INGRESO, "client_ip", "SALIDA_VEHICULAR", registroRegularizado)
-                socketClient.enviarRegistroACaseta(msgSocket)
+                //val msgSocket = SocketMessage(MessageType.REGISTRO_INGRESO, "client_ip", "SALIDA_VEHICULAR", registroRegularizado)
+                //socketClient.enviarRegistroACaseta(msgSocket)
 
                 // 3. Persistir en la cola local de Google Sheets de DataRawRondin para push en background
                 // dataRawRondin.sync(SheetTable.BITACORA_ACCESOS, Operation.APPEND, listOf(...))

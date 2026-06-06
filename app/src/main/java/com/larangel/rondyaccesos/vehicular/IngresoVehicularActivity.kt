@@ -464,9 +464,9 @@ class IngresoVehicularActivity : AppCompatActivity() {
                             binding.btnSiguientePasoManual.visibility = View.GONE
 
                             viewModel.listadoMotivosPredefinidos.forEach { motivo ->
-                                inyectarBotonEnMalla(motivo) {
+                                inyectarBotonEnMalla(motivo.name) {
                                     controlarEstadoMicrofono(habilitar = false) // Pausa preventiva táctil
-                                    viewModel.seleccionarMotivo(motivo)
+                                    viewModel.seleccionarMotivo(motivo.name)
                                 }
                             }
                         }
@@ -1134,7 +1134,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
                                 titulo = "Info",
                                 mensajePersonalizado = status.msg,
                                 colorHex = "#27CCF5",  //Azul
-                                mostrarBoton = false // Permite cerrar el diálogo si la API de Render cae
+                                mostrarBoton = true // Permite cerrar el diálogo si la API de Render cae
                             )
                         }
 
@@ -1171,6 +1171,8 @@ class IngresoVehicularActivity : AppCompatActivity() {
      * Infla la vista XML y acopla el listener de cancelación manual.
      */
     private fun mostrarDialogoEstructuralWhatsapp(status: WhatsappAuthStatus.Solicitando? = null) {
+        if (isFinishing || isDestroyed) return
+
         val inflater = layoutInflater
         val dialogView = inflater.inflate(R.layout.dialog_whatsapp_auth, null)
 
@@ -1251,7 +1253,6 @@ class IngresoVehicularActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
         speechRecognizer?.destroy()
         apagarStreamVideoRtspPlacas()
         mediaPlayer?.release()
@@ -1260,5 +1261,8 @@ class IngresoVehicularActivity : AppCompatActivity() {
         textRecognizer.close()
         cameraExecutor?.shutdown()
         qrScannerClient.close()
+        whatsappDialog?.dismiss()
+        whatsappDialog = null
+        super.onDestroy()
     }
 }

@@ -76,16 +76,18 @@ fun String.extraerMarcaAuto(): String? {
  */
 fun String.telefonoParaTwilio(): String {
     // 1. Limpiar el string de espacios, guiones o paréntesis que pueda traer la base de datos
-    val numeroLimpio = this.replace(Regex("[\\s\\-\\(\\)]"), "")
+    var numeroLimpio = this.filter { it.isDigit() }//  .replace(Regex("[\\s\\-\\(\\)]"), "")
+
+    if (numeroLimpio.length >= 10 && numeroLimpio.length <= 13 ) return ""
 
     // 2. Si el número tiene exactamente 10 dígitos, asumimos Lada México (+52)
-    if (numeroLimpio.length == 10 && numeroLimpio.all { it.isDigit() }) {
-        return "+52$numeroLimpio"
+    if (numeroLimpio.length == 10 ) {
+        numeroLimpio = "+52$numeroLimpio"
     }
 
     // 3. Si ya incluye código internacional pero le falta el símbolo "+"
     if (!numeroLimpio.startsWith("+")) {
-        return "+$numeroLimpio"
+        numeroLimpio = "+$numeroLimpio"
     }
 
     // 3. ESPECIFICACIÓN: Validar longitud exacta de 13 caracteres

@@ -7,8 +7,8 @@ import java.util.Locale
 
 @Serializable
 data class AccesoBitacora(
-    val fechaCreado: String = SimpleDateFormat("yyyy-MM-dicty HH:mm:ss", Locale.getDefault()).format(Date()),
-    val fechaIngreso: String = SimpleDateFormat("yyyy-MM-dicty HH:mm:ss", Locale.getDefault()).format(Date()),
+    val fechaCreado: String = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()),
+    val fechaIngreso: String = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()),
     val placa: String,
     val calle: String,
     val numero: String,

@@ -3,9 +3,9 @@ package com.larangel.rondyaccesos.models.com.larangel.rondyaccesos.salida
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.larangel.rondyaccesos.RondyApplication
 import com.larangel.rondyaccesos.models.AccesoBitacora
 import com.larangel.rondyaccesos.models.sockets.MessageType
-import com.larangel.rondyaccesos.models.sockets.RondySocketClient
 import com.larangel.rondyaccesos.models.sockets.SocketMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,7 +27,8 @@ class SalidaVehicularViewModel(application: Application) : AndroidViewModel(appl
     private val _uiState = MutableStateFlow(SalidaUiState())
     val uiState: StateFlow<SalidaUiState> = _uiState.asStateFlow()
 
-    private val socketClient = RondySocketClient()
+    //private val socketClient = RondySocketClient()
+    private val networkManager = getApplication<RondyApplication>().networkManager
 
     // Se ejecuta automáticamente cuando la cámara IP procesa un texto exitoso vía ML Kit OCR
     fun procesarPlacaDetectadaPorCamara(placaCamara: String) {
@@ -86,8 +87,9 @@ class SalidaVehicularViewModel(application: Application) : AndroidViewModel(appl
             )
 
             // 1. Transmitir JSON en tiempo real a la Caseta Central (Padre) vía TCP
-            val msgSocket = SocketMessage(MessageType.REGISTRO_INGRESO, "client_ip", "SALIDA_VEHICULAR", registroEgreso)
-            socketClient.enviarRegistroACaseta(msgSocket)
+            //val msgSocket = SocketMessage(MessageType.REGISTRO_INGRESO, "client_ip", "SALIDA_VEHICULAR", registroEgreso)
+            //socketClient.enviarRegistroACaseta(msgSocket)
+            networkManager.replicarIngreso(registroEgreso)
 
             // 2. Persistir en la cola diferida de Google Sheets de DataRawRondin
             // dataRawRondin.sync(SheetTable.BITACORA_ACCESOS, Operation.APPEND, listOf(...))

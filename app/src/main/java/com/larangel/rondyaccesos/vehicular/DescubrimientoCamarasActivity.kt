@@ -2,13 +2,17 @@ package com.larangel.rondyaccesos.vehicular
 
 import android.graphics.*
 import android.os.Bundle
+import android.util.Log
 import android.view.*
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.larangel.rondyaccesos.R
+import com.larangel.rondyaccesos.RondyApplication
 import com.larangel.rondyaccesos.models.MySettings
+import com.larangel.rondyaccesos.models.sockets.RondyNetworkManager
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.withPermit
 import java.net.InetSocketAddress
 import java.net.Socket
 import org.videolan.libvlc.LibVLC
@@ -27,12 +31,15 @@ class DescubrimientoCamarasActivity : AppCompatActivity() {
     private lateinit var adapter: CamarasGridAdapter
     private lateinit var mySettings: MySettings // Asegura inyectar o leer tu clase de persistencia
 
+    private var miIp: String = ""
+
     // Listado determinista de rutas de fabricantes (Hikvision, Dahua, Steren, Reolink, Genéricas)
     private val sufijosStreamsProbar = listOf(
         "stream",
         "h264_vga.sdp",
         "cam/realmonitor?channel=1&subtype=0",
         "stream1",
+        "stream2",
         "Preview_01_main"
     )
 
@@ -64,6 +71,12 @@ class DescubrimientoCamarasActivity : AppCompatActivity() {
             Toast.makeText(this, "Cámara configurada por defecto correctamente.", Toast.LENGTH_LONG).show()
             finish() // Regresa a la pantalla principal
         }
+
+        //Defualt mascara subred
+        miIp = (application as RondyApplication).networkManager.getMiIp()
+        // Extraer el prefijo (ej: de 192.168.1.50 a 192.168.1.)
+        val prefix = miIp.substringBeforeLast(".") + ".0/24"
+        txtSubred.setText(prefix)
     }
 
     private fun cargarCamarasDesdeCacheExistente() {
@@ -84,9 +97,15 @@ class DescubrimientoCamarasActivity : AppCompatActivity() {
     }
 
     private fun ejecutarEscaneoDeRedCompleto(segmentoCidr: String) {
+        val progressEscaneo = findViewById<ProgressBar>(R.id.progressEscaneo)
+        val txtDetalle = findViewById<TextView>(R.id.txtProgresoDetalle)
+
+        txtDetalle.text = "Iniciando escaneo..."
         btnEscanear.isEnabled = false
-        progressBar.visibility = View.VISIBLE
-        progressBar.progress = 0
+        progressEscaneo.visibility = View.VISIBLE
+        txtDetalle.visibility = View.VISIBLE
+        progressEscaneo.progress = 0
+        val ipsProcesadas = java.util.concurrent.atomic.AtomicInteger(0)
 
         listaUrlsEncontradas.clear()
         listaCamarasAdapterData.clear()
@@ -98,23 +117,49 @@ class DescubrimientoCamarasActivity : AppCompatActivity() {
             val rstp_user= mySettings.getString("RSTP_USER", "admin")
             val rstp_pass= mySettings.getString("RSTP_PASS", "admin123")
             val passwordCamara = "${rstp_user}:${rstp_pass}" // Lee tus credenciales
+            val semaforo = kotlinx.coroutines.sync.Semaphore(15)
 
             val deferreds = (1..254).map { host ->
+            //val deferreds = (66..68).map { host ->
                 async {
-                    val ipAProbar = "$baseIp$host"
-                    if (verificarPuertoAbierto(ipAProbar, 554, timeoutMs = 150)) {
-                        // El puerto RTSP está abierto. Procedemos a escanear los sufijos uno por uno
-                        for (sufijo in sufijosStreamsProbar) {
-                            val urlCompletaRtsp = "rtsp://$passwordCamara@$ipAProbar:554/$sufijo"
-                            if (validarConexionRtspReal(urlCompletaRtsp)) {
-                                val frameSnapshot = extraerFrameEstaticoDeRtsp(urlCompletaRtsp)
+                    semaforo.withPermit {
+                        val ipAProbar = "$baseIp$host"
+                        if (ipAProbar == miIp) return@async // Ignorar mi propia IP)
+                        // Actualizar texto de qué IP se está probando actualmente
+                        withContext(Dispatchers.Main) {
+                            txtDetalle.text = "Probando: $ipAProbar"
+                        }
+                        if (verificarPuertoAbierto(ipAProbar, 554, timeoutMs = 800)) {
+                            // El puerto RTSP está abierto. Procedemos a escanear los sufijos uno por uno
+                            for (sufijo in sufijosStreamsProbar) {
+                                val urlCompletaRtsp =
+                                    "rtsp://$passwordCamara@$ipAProbar:554/$sufijo"
+                                // rtsp://luisrangel:mevale14@172.16.1.67:554/stream2
+                                val bitmapCapturado = validarYCapturarFrameRtsp(urlCompletaRtsp)
 
-                                withContext(Dispatchers.Main) {
-                                    listaUrlsEncontradas.add(urlCompletaRtsp)
-                                    listaCamarasAdapterData.add(Pair(urlCompletaRtsp, frameSnapshot))
-                                    adapter.notifyDataSetChanged()
+                                if (bitmapCapturado != null) {
+                                    withContext(Dispatchers.Main) {
+                                        listaUrlsEncontradas.add(urlCompletaRtsp)
+                                        listaCamarasAdapterData.add(
+                                            Pair(
+                                                urlCompletaRtsp,
+                                                bitmapCapturado
+                                            )
+                                        )
+                                        adapter.notifyDataSetChanged()
+                                    }
+                                    break
                                 }
-                                break // Si un sufijo funcionó, saltamos al siguiente host IP para ahorrar tiempo
+                            }
+                        }
+
+                        // Actualizar barra de progreso al terminar con esta IP
+                        val actual = ipsProcesadas.incrementAndGet()
+                        withContext(Dispatchers.Main) {
+                            progressEscaneo.progress = actual
+                            if (actual >= 254) {
+                                txtDetalle.text = "Escaneo completado"
+                                // Opcional: ocultar barra tras unos segundos
                             }
                         }
                     }
@@ -137,36 +182,93 @@ class DescubrimientoCamarasActivity : AppCompatActivity() {
     private fun verificarPuertoAbierto(ip: String, puerto: Int, timeoutMs: Int): Boolean {
         return try {
             Socket().use { socket ->
+                Log.d("Escaneo", "Probando $ip:$puerto...")
                 socket.connect(InetSocketAddress(ip, puerto), timeoutMs)
+                Log.d("Escaneo", "¡ÉXITO en $ip!")
                 true
             }
-        } catch (e: Exception) { false }
+        } catch (e: Exception) {
+            // Esto te dirá si es "Timeout", "Host unreachable" o "Permission denied"
+            Log.e("Escaneo", "Fallo en $ip: ${e.message}")
+            false
+        }
     }
 
-    private fun validarConexionRtspReal(urlRtsp: String): Boolean {
-        // Inicializa un contenedor LibVLC efímero para validar la cabecera del stream de forma atómica
-        var esValido = false
+    private suspend fun validarYCapturarFrameRtsp(urlRtsp: String): Bitmap? = withContext(Dispatchers.IO) {
+        var resultado: Bitmap? = null
+        val vlcArgs = arrayListOf(
+            "--rtsp-tcp",                // Forzar TCP para evitar pérdida de paquetes en el escaneo
+            "--network-caching=500",      // Buffer bajo para velocidad
+            "--no-audio",                 // No necesitamos audio para la validación
+            "--no-stats",
+            "--swscale-mode=0"            // Optimizar escalado
+        )
+
+        var vlcCore: LibVLC? = null
+        var player: MediaPlayer? = null
+        var mediaObj: Media? = null
+
         try {
-            val args = arrayListOf("--rtsp-tcp", "--network-caching=100")
-            val vlcCore = LibVLC(this, args)
-            val player = MediaPlayer(vlcCore)
-            val mediaObj = Media(vlcCore, urlRtsp)
+            vlcCore = LibVLC(this@DescubrimientoCamarasActivity, vlcArgs)
+            player = MediaPlayer(vlcCore)
+            mediaObj = Media(vlcCore, urlRtsp)
+
+            // Opciones de media para acelerar la apertura
+            mediaObj.addOption(":clock-jitter=0")
+            mediaObj.addOption(":clock-synchro=0")
 
             player.media = mediaObj
             player.play()
 
-            // Tolerancia de 800ms para comprobar si el reproductor nativo engancha el códec sin errores
-            runBlocking { delay(800) }
+            // Bucle de espera inteligente (Timeout de 3 segundos)
+            val timeout = 3000L
+            val startTime = System.currentTimeMillis()
 
-            if (player.isPlaying) {
-                esValido = true
-                player.stop()
+            while (System.currentTimeMillis() - startTime < timeout) {
+                // Verificamos si ya enganchó el stream
+                if (player?.isPlaying == true) {
+                    val snapshotFile = java.io.File(cacheDir, "snap_${System.currentTimeMillis()}.png")
+                    val path = snapshotFile.absolutePath
+
+                    // Usamos Reflexión para invocar el método oculto en el binario nativo
+                    val exito = try {
+                        val method = player!!.javaClass.getMethod(
+                            "takeSnapshot",
+                            Int::class.javaPrimitiveType,
+                            String::class.java,
+                            Int::class.javaPrimitiveType,
+                            Int::class.javaPrimitiveType
+                        )
+                        method.invoke(player, 0, path, 0, 0) as Boolean
+                    } catch (e: Exception) {
+                        Log.e("RondyScan", "El método takeSnapshot no está disponible en este binario")
+                        false
+                    }
+
+                    if (exito) {
+                        delay(400) // Tiempo para que el decoder nativo termine de escribir el archivo
+                        if (snapshotFile.exists() && snapshotFile.length() > 0) {
+                            val options = BitmapFactory.Options().apply { inSampleSize = 2 }
+                            resultado = BitmapFactory.decodeFile(path, options)
+                            snapshotFile.delete()
+                            break
+                        }
+                    }
+                }
+                delay(200) // Reintentar cada 200ms
             }
-            mediaObj.release()
-            player.release()
-            vlcCore.release()
-        } catch (e: Exception) { esValido = false }
-        return esValido
+
+        } catch (e: Exception) {
+            Log.e("ScanCam", "Error validando $urlRtsp: ${e.message}")
+        } finally {
+            // Limpieza rigurosa de memoria nativa
+            player?.stop()
+            mediaObj?.release()
+            player?.release()
+            vlcCore?.release()
+        }
+
+        return@withContext resultado
     }
 
     private fun extraerFrameEstaticoDeRtsp(urlRtsp: String): Bitmap {

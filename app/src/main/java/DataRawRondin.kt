@@ -228,17 +228,24 @@ class DataRawRondin(
         //val rangeStr = "${table.sheetName}!${table.range}"
         val rangeStr = "${table.sheetName}!A:A"
 
-        return@withContext try {
-            syncMutex.withLock {
-                if (state.forSave.isEmpty()) return@withLock true
-                val body = ValueRange().setValues(state.forSave)
+        return@withContext syncMutex.withLock {
+            if (state.forSave.isEmpty()) return@withLock true
+
+            val datosAEnviar = state.forSave.toList()
+
+            val body = ValueRange().setValues(datosAEnviar)
+            try {
                 sheetsService.spreadsheets().values().append(spreadId, rangeStr, body)
                     .setValueInputOption("RAW").execute()
-                state.forSave.clear()
-                mySettings.saveList(table.saveKey, emptyList<List<String>>())
+
+                // Si tuvo éxito, eliminamos SOLO los que enviamos
+                state.forSave.removeAll(datosAEnviar)
+                mySettings.saveList(table.saveKey, state.forSave as List<List<String>>)
                 true
+            } catch (e: Exception) {
+                false
             }
-        } catch (e: Exception) { false }
+        }
     }
     private suspend fun executeUpdate(table: SheetTable): Boolean = withContext(Dispatchers.IO) {
         if (!isNetworkAvailable()) return@withContext false
@@ -1776,6 +1783,53 @@ class DataRawRondin(
         }
 
         return
+    }
+
+    //Tipos ACCESOS
+    private fun getTiposAccesosSheet(forceLoad: Boolean = false, createIfNotExist: Boolean = false): List<List<Any>> = runBlocking {
+        // Usamos el Enum de EXCEPCIONES y el SmartCache genérico
+        getSmartCache(SheetTable.TIPO_ACCESOS,forceLoad) {
+            val sheetName = SheetTable.TIPO_ACCESOS.sheetName
+            val range = SheetTable.TIPO_ACCESOS.range
+            val allRows = mutableListOf<List<Any>>()
+
+
+            // Obtenemos la lista de IDs de Spreadsheets desde MySettings
+            val spreadsheetIds = mySettings.getString("REGISTRO_CARROS_SPREADSHEET_ID","") //?: emptyList<String>()
+            if (spreadsheetIds.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
+
+            //for (id in spreadsheetIds) {
+            val idsheet = getSheetIdByName(spreadsheetIds,sheetName)
+            if (idsheet == null && createIfNotExist)
+                createWorkSheetNew(spreadsheetIds,SheetTable.QRS)
+
+            // Consultamos el rango A:N (desde Marca temporal hasta Procesado por ROBOT)
+            val response = sheetsService.spreadsheets().values()
+                .get(spreadsheetIds, "${sheetName}!${range}")
+                .execute()
+
+            // Omitimos la primera fila (encabezados) de cada hoja
+            val rows = response.getValues()?.drop(1) ?: emptyList()
+            allRows.addAll(rows)
+            //}
+
+            // Retornamos la lista consolidada al SmartCache
+            allRows
+        }
+    }
+    fun getTiposAccesos(forceLoad: Boolean = false, createIfNotExist: Boolean = false): List<TipoAccesos>{
+        val rows = getTiposAccesosSheet(forceLoad, createIfNotExist)
+        val result=mutableListOf<TipoAccesos>()
+        run loop@{
+            rows.forEach { row ->
+                try {
+                    result.add(TipoAccesos(row as List<String>))
+                }catch (e: Exception) {
+                    Log.e("DataRawRondin", "Excepcion al parsear TipoAcceso.", e)
+                }
+            }
+        }
+        return result as List<TipoAccesos>
     }
 
     // --- PARSEADORES DE FECHA TOLERANTES (Tu lógica de la Parte 1) ---

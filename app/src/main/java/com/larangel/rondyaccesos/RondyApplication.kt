@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import com.larangel.rondyaccesos.models.DataRawRondin
 import com.larangel.rondyaccesos.models.MySettings
 import com.larangel.rondyaccesos.models.network.BotCasetaApiService
+import com.larangel.rondyaccesos.models.sockets.RondyNetworkManager
 import com.larangel.rondyaccesos.utils.GeminiVoiceAssistant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,5 +41,18 @@ class RondyApplication : Application() {
     val botCasetaApiService: BotCasetaApiService by lazy {
         // Inicialización de tu servicio de red local/remoto pasando la configuración
         BotCasetaApiService.create(mySettings)
+    }
+
+    val networkManager: RondyNetworkManager by lazy {
+        // Obtenemos el rol actual del dispositivo (Vehiculo entrada, etc)
+        val miRol = mySettings.getString("SATELITE_NODE_MODE", "DESCONOCIDO")
+
+        RondyNetworkManager(
+            context = applicationContext,
+            scope = applicationScope,
+            miRol = miRol,
+            dataRaw = dataRawRondin,
+            mySettings = mySettings
+        )
     }
 }

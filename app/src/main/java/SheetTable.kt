@@ -29,6 +29,7 @@ enum class SheetTable(
 
 
     // --- NUEVAS TABLAS PARA EL FLUJO RONDY ACCESOS ---
+    TIPO_ACCESOS("tipoAccesos","TipoAccesos","A:H",listOf("name","excepcionesDinamicas","variosDomicilios","calleDefault","numeroDefault","autorizadoPorCaseta","EsEmergencia","RequierePermisoAdmon")),
     BITACORA_ACCESOS("ingreso", "BitacoraAccesos", "A:M",listOf("FechaCreado", "FechaIngreso", "Placa", "Calle", "Numero", "Tipo", "Conductor", "Desc", "Foto1", "Foto2", "qr_data", "fechaSalida","status")),     //
     EXCEPCIONES("Excepciones", "ExcepcionesDom", "A:L", listOf("id","calle","numero","conductor","placas","descripcion","status_vs_descripcion","fechainicio","fechafin","fecha_creado","status","coto")),     // Calle, Numero, TipoExcepcion, ValidoDesde, ValidoHasta, Notas
     DOMICILIOS_MOROSOS("saldos", "DomiciliosMorosos", "A:E", listOf("ID","Calle","Numero","Deuda","Fecha")),
@@ -87,3 +88,39 @@ enum class CaptureStep {
     PREGUNTA_OTRA_DIRECCION
 }
 
+@Serializable
+data class TipoAccesos(
+    val name: String,
+    val excepcionesDinamicas: Boolean,
+    val variosDomicilios: Boolean,
+    val calleDefault: String,
+    val numeroDefault: String,
+    val autorizadoPorCaseta: Boolean,
+    val EsEmergencia: Boolean,
+    val RequierePermisoAdmon: Boolean
+    ){
+    constructor(sheetRow: List<String>) : this(
+        name = sheetRow[0].toString(),
+        excepcionesDinamicas = "SI 1 TRUE VERDADERO".contains(sheetRow[1].toString().uppercase()),
+        variosDomicilios = "SI 1 TRUE VERDADERO".contains(sheetRow[2].toString().uppercase()),
+        calleDefault = sheetRow[3].toString(),
+        numeroDefault = sheetRow[4].toString(),
+        autorizadoPorCaseta = "SI 1 TRUE VERDADERO".contains(sheetRow[5].toString().uppercase()),
+        EsEmergencia = "SI 1 TRUE VERDADERO".contains(sheetRow[6].toString().uppercase()),
+        RequierePermisoAdmon = "SI 1 TRUE VERDADERO".contains(sheetRow[7].toString().uppercase()),
+    )
+    //listOf("name","excepcionesDinamicas","variosDomicilios","calleDefault","numeroDefault","autorizadoPorCaseta","EsEmergencia"))
+    // Convierte el objeto de negocio en una lista plana de Any/String compatible con Google Sheets API
+    fun toSheetRow(): List<String> {
+        return listOf(
+            name,
+            if(excepcionesDinamicas) "1" else "0",
+            if(variosDomicilios) "1" else "0",
+            calleDefault.trim(),
+            numeroDefault.trim(),
+            if(autorizadoPorCaseta) "1" else "0",
+            if(EsEmergencia) "1" else "0",
+            if(RequierePermisoAdmon) "1" else "0"
+        )
+    }
+}
