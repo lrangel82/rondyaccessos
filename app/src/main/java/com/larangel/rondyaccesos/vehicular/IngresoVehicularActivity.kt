@@ -238,6 +238,10 @@ class IngresoVehicularActivity : AppCompatActivity() {
             val intentScanner = Intent(this, DescubrimientoCamarasActivity::class.java)
             startActivity(intentScanner)
         }
+
+        binding.layoutSplash.setOnClickListener {
+            viewModel.despertarAsistente()
+        }
     }
 
     // --- PERMISOS
@@ -605,6 +609,10 @@ class IngresoVehicularActivity : AppCompatActivity() {
                 } else {
                     binding.layoutVisualEstatusDerecho.visibility = View.GONE
                 }
+
+                //SPLASH INACTIVIDAD
+                binding.layoutSplash.visibility = if (state.mostrarSplash) View.VISIBLE else View.GONE
+
             }
         }
     }

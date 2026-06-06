@@ -45,10 +45,12 @@ class IngresoVehicularViewModel(
     private val _uiState = MutableStateFlow(IngresoVehicularUiState())
     val uiState: StateFlow<IngresoVehicularUiState> = _uiState.asStateFlow()
 
+    private val TIMEOUT_INACTIVIDAD_TOTAL = 60 // 1 minuto para el Splash
+    private val TIMEOUT_RESET_ESTANDAR = 30    // 30 segundos para resetear paso actual
+
     private val networkManager = getApplication<RondyApplication>().networkManager
     private val guardarMutex = Mutex()
     private var timerJob: Job? = null
-    private val TIMEOUT_SEGUNDOS = 30
 
     private val _whatsappStatus = MutableStateFlow<WhatsappAuthStatus>(WhatsappAuthStatus.Idle)
     val whatsappStatus: StateFlow<WhatsappAuthStatus> = _whatsappStatus.asStateFlow()
@@ -109,7 +111,7 @@ class IngresoVehicularViewModel(
         }
     }
 
-    fun reiniciarAsistenteCompleto() {
+    fun reiniciarAsistenteCompleto(porRegistroExitoso: Boolean = false) {
         timerJob?.cancel()
         whatsappPollingJob?.cancel()
 
@@ -125,7 +127,9 @@ class IngresoVehicularViewModel(
             IngresoVehicularUiState(
                 currentStep = CaptureStep.SELECCION_MOTIVO,
                 lblTopMensaje = "Asistente iniciado. Seleccione motivo.",
-                segundosRestantes = TIMEOUT_SEGUNDOS
+                segundosRestantes = TIMEOUT_RESET_ESTANDAR,
+                mencionarBienvenida = porRegistroExitoso, // Solo mencionar si viene de un éxito
+                //mostrarSplash = false // Al reiniciar manualmente, quitamos el splash
             )
         }
         viewModelScope.launch {
@@ -139,29 +143,52 @@ class IngresoVehicularViewModel(
             procesarEntidadesExtraidasPorGemini(calle, numero, nombre, tipo, placa)
         }
         controlarCicloDeVidaDeStreaming()
-        geminiVoiceAssistant.forzarLocucionPorAltavoz("Bienvenido al condominio. Indique el motivo de su visita.")
+        // Solo menciona la frase si el flag está activo (post-registro)
+        if (_uiState.value.mencionarBienvenida) {
+            geminiVoiceAssistant.forzarLocucionPorAltavoz("Bienvenido al condominio. Cual es el motivo de su ingreso?.")
+            // Una vez dicha, bajamos el flag para que reinicios por inactividad no la repitan
+            _uiState.update { it.copy(mencionarBienvenida = false) }
+        }
         iniciarTimerInactividad()
     }
 
     fun iniciarTimerInactividad() {
         timerJob?.cancel()
-        _uiState.update { it.copy(segundosRestantes = TIMEOUT_SEGUNDOS) }
+        _uiState.update { it.copy(segundosRestantes = TIMEOUT_INACTIVIDAD_TOTAL) }
         timerJob = viewModelScope.launch(Dispatchers.Default) {
             try {
                 while (isActive && _uiState.value.segundosRestantes > 0) {
                     delay(1000)
+
+                    // Si el splash ya se está mostrando, no seguimos descontando
+                    if (_uiState.value.mostrarSplash) break
+
+                    val paso = _uiState.value.currentStep
+                    if (paso == CaptureStep.PROCESANDO_AUTORIZACION || flujoResuelto.get()) {
+                        continue
+                    }
                     _uiState.update { current ->
                         current.copy(segundosRestantes = current.segundosRestantes - 1)
                     }
                 }
                 if (_uiState.value.segundosRestantes == 0) {
                     withContext(Dispatchers.Main) {
+                        _uiState.update { it.copy(mostrarSplash = true) }
                         reiniciarAsistenteCompleto()
                     }
                 }
             } catch (e: CancellationException) {
                 // Cancelación controlada
             }
+        }
+    }
+    fun despertarAsistente(esPorVoz: Boolean = false) {
+        if (_uiState.value.mostrarSplash) {
+            _uiState.update { it.copy(mostrarSplash = false) }
+
+            // Al despertar por toque o voz "Hola", sí damos la bienvenida
+            geminiVoiceAssistant.forzarLocucionPorAltavoz("Bienvenido al condominio. Indique el motivo de su visita.")
+            iniciarTimerInactividad()
         }
     }
 
@@ -192,9 +219,11 @@ class IngresoVehicularViewModel(
     fun registrarPlacaDetectadaPorOcr(placaOcr: String) {
         val limpia = placaOcr.replace(Regex("[^a-zA-Z0-9]"), "").uppercase().trim()
         if (limpia.length >= 3) {
-            _uiState.update { it.copy(placaInput = limpia) }
-            // Apagar la cámara de inmediato para liberar recursos (Principio de UI Optimista)
-            controlarCicloDeVidaDeStreaming()
+            if (limpia != _uiState.value.placaInput) {
+                _uiState.update { it.copy(placaInput = limpia) }
+                // Apagar la cámara de inmediato para liberar recursos (Principio de UI Optimista)
+                controlarCicloDeVidaDeStreaming()
+            }
         }
     }
     fun reportarFallaConexionPlacas() {
@@ -1545,9 +1574,19 @@ class IngresoVehicularViewModel(
 
     // --- PROCESADOR DE ENTRADAS DE VOZ DE GEMINI (Match forzado de Catálogo) ---
     fun procesarEntradaVozAsistenteGemini(textoEscuchado: String) {
-        iniciarTimerInactividad()
+
         val query = textoEscuchado.trim().lowercase()
-        if (query.isEmpty()) return
+        if (query.isEmpty() || query.length < 2) return
+
+        iniciarTimerInactividad()
+
+        // Si está en splash y dice "Hola" o algo coherente
+        if (_uiState.value.mostrarSplash) {
+            if (query.contains("hola", ignoreCase = true) || query.length > 10) {
+                despertarAsistente(esPorVoz = true)
+                //return // No procesamos Gemini aún, solo despertamos
+            }
+        }
 
         // Actualizamos el estado para que el guardia vea en pantalla lo que el usuario dictó
         _uiState.update { it.copy(subtitulosAsistente = "🎤 Escuchado: \"$textoEscuchado\"") }
