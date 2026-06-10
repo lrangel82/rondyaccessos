@@ -331,7 +331,10 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:elevation="50dp"
-        android:visibility="gone">
+        android:visibility="gone"
+        tools:layout_editor_absoluteX="8dp"
+        tools:layout_editor_absoluteY="8dp">
+
         <LinearLayout
             android:id="@+id/panelColorContenedor"
             android:layout_width="match_parent"
@@ -339,6 +342,7 @@
             android:background="#E60A0E14"
             android:gravity="center"
             android:orientation="vertical">
+
             <TextView
                 android:id="@+id/tvEstatusGrande"
                 android:layout_width="wrap_content"
@@ -347,6 +351,7 @@
                 android:textColor="#00E676"
                 android:textSize="64sp"
                 android:textStyle="bold" />
+
             <TextView
                 android:id="@+id/tvEstatusDetallePeque"
                 android:layout_width="wrap_content"
@@ -365,17 +370,22 @@
         android:clickable="true"
         android:elevation="100dp"
         android:focusable="true"
-        android:visibility="gone">
+        android:visibility="gone"
+        tools:layout_editor_absoluteX="8dp"
+        tools:layout_editor_absoluteY="8dp">
+
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:gravity="center"
             android:orientation="vertical">
+
             <ImageView
                 android:layout_width="220dp"
                 android:layout_height="220dp"
                 android:src="@drawable/logo" />
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -383,6 +393,7 @@
                 android:textColor="#FFFFFF"
                 android:textSize="80sp"
                 android:textStyle="bold" />
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

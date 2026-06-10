@@ -741,7 +741,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
             }
 
             // Explicitly track allocated reference via currentPlacaMedia to clear later
-            val mediaInstance = Media(libVLC, viewModel.urlCamaraPlacasRtsp).apply {
+            val mediaInstance = Media(libVLC, android.net.Uri.parse(viewModel.urlCamaraPlacasRtsp)).apply {
                 setHWDecoderEnabled(true, false) // Enable native hardware acceleration
             }
 

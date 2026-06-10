@@ -61,7 +61,7 @@ class IngresoVehicularViewModel(
     var todosLosDomiciliosCache: List<List<Any>> = emptyList() // calle, numero, clave
 
     // Control parameters loaded dynamically from your S3 configuration
-    var urlCamaraPlacasRtsp: String = "rtsp://admin:admin123@172.16.1.67:554/stream2"
+    var urlCamaraPlacasRtsp: String = "rtsp://larangel:mevale14@172.16.1.67:554/stream2"
     var urlCamaraQrRtspFallback: String = ""
     var usarCamaraLocalParaQr: Boolean = true
 
@@ -635,7 +635,18 @@ class IngresoVehicularViewModel(
     }
 
     fun guardarPlacaYSolicitarAutorizacion(placa: String){
-        _uiState.update { it.copy(placaInput = placa) }
+        ///La placa es VALIDA? si es formato de placa?
+        val placaSanitizada=placa.extraerPlaca()
+        if (placaSanitizada == null || placaSanitizada.isEmpty()){
+            _uiState.update { it.copy(
+                subtitulosAsistente = "🤖 La placa '$placa', No es valida! porfavor ingrese su placa en formato correcto.",
+                placaInput = ""
+            ) }
+            evaluaDatosMaquinaDeEstados()
+            return
+        }
+
+        _uiState.update { it.copy(placaInput = placaSanitizada) }
 
         if (_uiState.value.motivoInput!= null && _uiState.value.motivoInput!!.variosDomicilios && _uiState.value.direccionesPaqueteria.size > 1) {
             // CASO ESPECIAL: Es un recorrido. No se pide autorización, se procesan ráfagas de inserción
@@ -1153,7 +1164,7 @@ class IngresoVehicularViewModel(
 
 
         //No hay forma de contactar al residente
-        if (telefonosArray.isEmpty() && telFijo.isEmpty()) {
+        if (telefonosArray.isEmpty() && telFijo.isEmpty() && state.motivoInput?.autorizadoPorCaseta == false) {
             val msg = "No hay telefonos registrados para este domicilio, SE DENIEGA ACCESO."
             _whatsappStatus.value = WhatsappAuthStatus.Error(msg)
             geminiVoiceAssistant.forzarLocucionPorAltavoz(msg)
@@ -1270,6 +1281,7 @@ class IngresoVehicularViewModel(
                         if (!response.isSuccessful) {
                             contadorErrores++
                             if (contadorErrores > 10) {
+                                flujoWhatsAppDisparado.set(false)
                                 // ESPECIFICACIÓN: Si la API falla, activa Socket Caseta de inmediato y rompe el flujo
                                 manejarFalloCriticoEnCanal(
                                     state,
@@ -1287,6 +1299,7 @@ class IngresoVehicularViewModel(
                         if (validarVigenciaUtc(fechaLastActividad)) {
                             when (lastAct) {
                                 "visita_acceso_permitido" -> {
+                                    flujoWhatsAppDisparado.set(false)
                                     terminarFlujoConGanador {
                                         val toInform = telefonosArray.filter { it[2].toString() != telefono }
                                         informarOtrosCopropietarios(tokenApi, toInform, telefono, "Acceso permitido", requestPayload)
@@ -1296,6 +1309,7 @@ class IngresoVehicularViewModel(
                                     return
                                 }
                                 "visita_acceso_denegado" -> {
+                                    flujoWhatsAppDisparado.set(false)
                                     terminarFlujoConGanador {
                                         val toInform = telefonosArray.filter { it[2].toString() != telefono }
                                         informarOtrosCopropietarios(tokenApi, toInform, telefono, "Acceso denegado", requestPayload)
@@ -1317,6 +1331,7 @@ class IngresoVehicularViewModel(
                         contadorErrores++
                         if (contadorErrores > 10) {
                             // ESPECIFICACIÓN: Si hay caída de red/excepción, dispara Socket Caseta al instante
+                            flujoWhatsAppDisparado.set(false)
                             manejarFalloCriticoEnCanal(
                                 state,
                                 "Fallo de conexión en red en WhatsApp: ${e.message}"
@@ -1332,8 +1347,8 @@ class IngresoVehicularViewModel(
         }
     }
     private suspend fun lanzarFlujoIVRSeguro(state: IngresoVehicularUiState) {
-        if (flujoIVRDisparado.compareAndSet(false, true) == false) return //Indicar que ya se disparo
         val tokenApi = "Bearer " + mySettings.getString("TOKEN_API_BOTCASETA", "")
+        var contadorErrores = 0
 
         var segundosRestantes = 180
         val telefonosArray = dataRaw.getWhatsappTelefonosDomicilio(state.calleInput, state.numeroInput)
@@ -1351,6 +1366,8 @@ class IngresoVehicularViewModel(
                 domicilio.first().getOrNull(5).toString().split(",").map { it.trim() }
         }
         if (telFijoArray.isEmpty()) return
+
+        if (flujoIVRDisparado.compareAndSet(false, true) == false) return //Indicar que ya se disparo
 
         while (currentCoroutineContext().isActive && !flujoResuelto.get() && segundosRestantes > 0){
             //Ciclo mientras no tengamos respuesta de alguien
@@ -1377,8 +1394,15 @@ class IngresoVehicularViewModel(
 
                         if (!response.isSuccessful) {
                             // ESPECIFICACIÓN: Si la API falla, activa Socket Caseta de inmediato y rompe el flujo
-                            manejarFalloCriticoEnCanal(state, "Error API validar_visita: ${response.code()}")
-                            return
+                            contadorErrores++
+                            if (contadorErrores > 10) {
+                                flujoIVRDisparado.set(false)
+                                manejarFalloCriticoEnCanal(
+                                    state,
+                                    "Error API validar_visita de IVR: ${response.code()}"
+                                )
+                                return
+                            }
                         }
 
                         val body = response.body() ?: continue
@@ -1399,6 +1423,7 @@ class IngresoVehicularViewModel(
                                     }
                                 }
                                 "ivr_aprobado" -> {
+                                    flujoIVRDisparado.set(false)
                                     terminarFlujoConGanador {
                                         informarOtrosCopropietarios(tokenApi, telefonosArray, telFIJO, "Acceso permitido", requestToInformResult)
                                         _whatsappStatus.value = WhatsappAuthStatus.Autorizado
@@ -1407,6 +1432,7 @@ class IngresoVehicularViewModel(
                                     return
                                 }
                                 "ivr_denegado" -> {
+                                    flujoIVRDisparado.set(false)
                                     terminarFlujoConGanador {
                                         informarOtrosCopropietarios(tokenApi, telefonosArray, telFIJO, "Acceso denegado", requestToInformResult)
                                         _whatsappStatus.value = WhatsappAuthStatus.Denegado
@@ -1415,6 +1441,7 @@ class IngresoVehicularViewModel(
                                     return
                                 }
                                 "ivr_timeout" -> {
+                                    flujoIVRDisparado.set(false)
                                     withContext(Dispatchers.Main) {
                                         _whatsappStatus.value = WhatsappAuthStatus.Timeout
                                     }
@@ -1425,8 +1452,15 @@ class IngresoVehicularViewModel(
                         }
                     } catch (e: Exception) {
                         // ESPECIFICACIÓN: Si hay caída de red/excepción, dispara Socket Caseta al instante
-                        manejarFalloCriticoEnCanal(state, "Fallo de conexión en red en WhatsApp: ${e.message}")
-                        return
+                        contadorErrores++
+                        if (contadorErrores > 10) {
+                            flujoIVRDisparado.set(false)
+                            manejarFalloCriticoEnCanal(
+                                state,
+                                "Fallo de conexión en red en Flujo IVR: ${e.message}"
+                            )
+                            return
+                        }
                     }
                     //Fin ciclo por telefono fijo
                 }
@@ -1459,24 +1493,41 @@ class IngresoVehicularViewModel(
             // El bucle lee atómicamente el valor mientras sea true
             var segundosRestantes = 60
             while (currentCoroutineContext().isActive && !flujoResuelto.get() && segundosRestantes > 0){
-                if (segundosRestantes % 3 == 0) {
-                    //Verificar Estatus respuesta
-                    when (networkManager.RESPUESTA_SOLICITAR_AUTORIZACION.get()){
-                        "AUTORIZADO" -> {
-                            terminarFlujoConGanador {
-                                _whatsappStatus.value = WhatsappAuthStatus.Autorizado
-                                procesarEjecucionGuardadoFinal(state, "CASETA", "visita_acceso_permitido")
+                try {
+                    if (segundosRestantes % 3 == 0) {
+                        //Verificar Estatus respuesta
+                        when (networkManager.RESPUESTA_SOLICITAR_AUTORIZACION.get()) {
+                            "AUTORIZADO" -> {
+                                flujoSocketCasetaDisparado.set(false)
+                                terminarFlujoConGanador {
+                                    _whatsappStatus.value = WhatsappAuthStatus.Autorizado
+                                    procesarEjecucionGuardadoFinal(
+                                        state,
+                                        "CASETA",
+                                        "visita_acceso_permitido"
+                                    )
+                                }
+                                return
                             }
-                            return
-                        }
-                        "DENEGADO" -> {
-                            terminarFlujoConGanador {
-                                _whatsappStatus.value = WhatsappAuthStatus.Denegado
-                                procesarEjecucionGuardadoFinal(state, "CASETA", "visita_acceso_denegado")
+
+                            "DENEGADO" -> {
+                                flujoSocketCasetaDisparado.set(false)
+                                terminarFlujoConGanador {
+                                    _whatsappStatus.value = WhatsappAuthStatus.Denegado
+                                    procesarEjecucionGuardadoFinal(
+                                        state,
+                                        "CASETA",
+                                        "visita_acceso_denegado"
+                                    )
+                                }
+                                return
                             }
-                            return
                         }
                     }
+                }catch (e: Exception) {
+                    flujoSocketCasetaDisparado.set(false)
+                    manejarFalloCriticoEnCanal(state, "Fallo de conexión en red en Socket Flow: ${e.message}")
+                    return
                 }
                 delay(1000)
                 segundosRestantes--
@@ -1508,9 +1559,11 @@ class IngresoVehicularViewModel(
                     val response = client.newCall(request).execute()
                     if (!response.isSuccessful) {
                         Log.e("TwilioIVR", "Error al disparar flujo: ${response.code}")
+                        flujoIVRDisparado.set(false)
                         manejarFalloCriticoEnCanal(state, "Fallo API Twilio Studio")
                     }
                 } catch (e: Exception) {
+                    flujoIVRDisparado.set(false)
                     manejarFalloCriticoEnCanal(state, "Excepción de red al llamar a Twilio: ${e.message}")
                 }
             }
@@ -1538,16 +1591,22 @@ class IngresoVehicularViewModel(
 //            runBlocking(Dispatchers.Main) {
 //                dispararSocketCasetaManual(state)
 //            }
-
-        if (flujoResuelto.compareAndSet(false, true)) {
-            orquestadorJob?.cancel()
-            timerJob?.cancel()
-            runBlocking(Dispatchers.Main) {
-                val msg = "Error critico al solicitar autorizacion, se deniega el acceso, razon:${razon}"
-                geminiVoiceAssistant.forzarLocucionPorAltavoz(msg)
-                _whatsappStatus.value = WhatsappAuthStatus.Error(msg)
-                delay(5000)
-                cancelarFlujoPorError()
+        //Si aun hay un flow corriendo, no se debe cancelar, solo avisar que uno fallo
+        if (flujoIVRDisparado.get() || flujoWhatsAppDisparado.get() || flujoSocketCasetaDisparado.get()) {
+            _uiState.update { it.copy(subtitulosAsistente = "Fallo en flujo: \"$razon\"") }
+        }else {
+            //Todos los flujos terminaron, cancelar el acceso
+            if (flujoResuelto.compareAndSet(false, true)) {
+                orquestadorJob?.cancel()
+                timerJob?.cancel()
+                runBlocking(Dispatchers.Main) {
+                    val msg =
+                        "Error critico al solicitar autorizacion, se deniega el acceso, razon:${razon}"
+                    geminiVoiceAssistant.forzarLocucionPorAltavoz(msg)
+                    _whatsappStatus.value = WhatsappAuthStatus.Error(msg)
+                    delay(5000)
+                    cancelarFlujoPorError()
+                }
             }
         }
     }

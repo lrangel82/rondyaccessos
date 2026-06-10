@@ -78,7 +78,7 @@ fun String.telefonoParaTwilio(): String {
     // 1. Limpiar el string de espacios, guiones o paréntesis que pueda traer la base de datos
     var numeroLimpio = this.filter { it.isDigit() }//  .replace(Regex("[\\s\\-\\(\\)]"), "")
 
-    if (numeroLimpio.length >= 10 && numeroLimpio.length <= 13 ) return ""
+    if (numeroLimpio.length < 10 && numeroLimpio.length > 13 ) return ""
 
     // 2. Si el número tiene exactamente 10 dígitos, asumimos Lada México (+52)
     if (numeroLimpio.length == 10 ) {

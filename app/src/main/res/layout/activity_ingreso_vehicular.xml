@@ -209,22 +209,25 @@
         app:cardBackgroundColor="#161B22"
         app:cardCornerRadius="24dp"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/columnaCamaras">
+        app:layout_constraintTop_toBottomOf="@id/columnaCamaras"
+        tools:layout_editor_absoluteX="12dp"
+        tools:visibility="visible">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="vertical"
-            android:padding="20dp">
+            android:padding="20dp"
+            tools:visibility="visible">
 
             <TextView
                 android:id="@+id/lblInstruccionSeccion"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-medium"
                 android:text="Seleccione motivo"
                 android:textColor="#FFFFFF"
-                android:textSize="24sp"
-                android:fontFamily="sans-serif-medium" />
+                android:textSize="24sp" />
 
             <!-- Subtítulos estilo Chat IA -->
             <TextView
@@ -243,8 +246,8 @@
                 android:id="@+id/ScrollViewGridBotones"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
-                android:layout_weight="1"
                 android:layout_marginTop="12dp"
+                android:layout_weight="1"
                 android:fadeScrollbars="false"
                 android:scrollbarThumbVertical="@color/material_dynamic_neutral40">
 
@@ -252,9 +255,9 @@
                     android:id="@+id/containerGridBotones"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    app:chipSpacingVertical="8dp"
                     app:chipSpacingHorizontal="8dp"
-                    app:singleSelection="true"/>
+                    app:chipSpacingVertical="8dp"
+                    app:singleSelection="true" />
             </ScrollView>
 
             <!-- Input Manual Moderno -->
@@ -295,11 +298,11 @@
                     android:id="@+id/btnSiguientePasoManual"
                     android:layout_width="0dp"
                     android:layout_height="60dp"
-                    android:layout_weight="1"
                     android:layout_marginStart="8dp"
-                    app:cornerRadius="12dp"
+                    android:layout_weight="1"
+                    android:backgroundTint="#00D4FF"
                     android:text="SIGUIENTE"
-                    android:backgroundTint="#00D4FF" />
+                    app:cornerRadius="12dp" />
             </LinearLayout>
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
@@ -309,6 +312,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#ffffff"
+        android:elevation="5dp"
         android:padding="24dp"
         android:visibility="gone"
         tools:layout_editor_absoluteX="12dp"
@@ -326,7 +330,7 @@
                 android:layout_height="wrap_content"
                 android:gravity="center"
                 android:text="AUTORIZADO"
-                android:textSize="56sp"
+                android:textSize="54sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -349,7 +353,7 @@
         android:clickable="true"
         android:elevation="100dp"
         android:focusable="true"
-        android:visibility="gone"
+        android:visibility="visible"
         tools:layout_editor_absoluteX="8dp"
         tools:layout_editor_absoluteY="8dp">
 
@@ -362,7 +366,7 @@
             <ImageView
                 android:layout_width="300dp"
                 android:layout_height="300dp"
-                android:src="@drawable/logo" /> <!-- Tu logo o Gif -->
+                android:src="@drawable/logo_sintext2" /> <!-- Tu logo o Gif -->
 
             <TextView
                 android:layout_width="wrap_content"

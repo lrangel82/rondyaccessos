@@ -211,7 +211,7 @@ class DescubrimientoCamarasActivity : AppCompatActivity() {
         try {
             vlcCore = LibVLC(this@DescubrimientoCamarasActivity, vlcArgs)
             player = MediaPlayer(vlcCore)
-            mediaObj = Media(vlcCore, urlRtsp)
+            mediaObj = Media(vlcCore, android.net.Uri.parse(urlRtsp))
 
             // Opciones de media para acelerar la apertura
             mediaObj.addOption(":clock-jitter=0")
