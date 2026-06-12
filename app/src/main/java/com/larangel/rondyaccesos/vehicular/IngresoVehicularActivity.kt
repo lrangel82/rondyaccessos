@@ -907,7 +907,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
                                 "OCR texto encontrado....${textoEncontrado} placa:${placa_sanitizada}"
                             )
                             // Match criteria regex filter tracking patterns
-                            if (placa_sanitizada!!.isNotEmpty()) {
+                            if (placa_sanitizada!= null && placa_sanitizada!!.isNotEmpty()) {
                                 viewModel.registrarPlacaDetectadaPorOcr(placa_sanitizada)
                                 break
                             }

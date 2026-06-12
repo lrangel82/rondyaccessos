@@ -81,8 +81,8 @@
     <!-- ÁREA DE CÁMARA (ROSTRO) -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/cardCamara"
-        android:layout_width="0dp"
-        android:layout_height="280dp"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:layout_marginTop="16dp"
         app:cardBackgroundColor="#000000"
         app:cardCornerRadius="24dp"
@@ -94,7 +94,9 @@
 
         <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
+            android:layout_height="match_parent"
+            android:layout_gravity="center"
+            android:foregroundGravity="center">
 
             <androidx.camera.view.PreviewView
                 android:id="@+id/cameraXQrPreview"
