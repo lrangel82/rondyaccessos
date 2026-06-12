@@ -56,6 +56,7 @@ import com.larangel.rondyaccesos.ui.VigilanteConfigActivity
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import android.speech.tts.UtteranceProgressListener
+import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.TextView
@@ -69,6 +70,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.core.graphics.toColorInt
+import com.larangel.rondyaccesos.utils.extraerPlaca
 
 
 class IngresoVehicularActivity : AppCompatActivity() {
@@ -677,13 +679,6 @@ class IngresoVehicularActivity : AppCompatActivity() {
                 viewModel.actualizarUrlPlacasRtsp(urlDigitada)
             }
         }
-
-//        binding.btnCambiarAIP.setOnClickListener {
-//            viewModel.cambiarOrigenQrAHardwareIp("rtsp://192.168.1.151:554/live")
-//            binding.layoutFixCamaraQr.visibility = View.GONE
-//            binding.cameraXQrPreview.visibility = View.GONE
-//            binding.vlcQrSurfaceFallback.visibility = View.VISIBLE
-//        }
     }
     private fun observarCicloDeVidaDeCamaras() {
         // 1. Reactive loop managing the playback state of the external IP camera
@@ -803,43 +798,64 @@ class IngresoVehicularActivity : AppCompatActivity() {
     private fun iniciarBucleProcesamientoOcrPlacas() {
         ocrJob?.cancel()
         ocrJob = lifecycleScope.launch(Dispatchers.Default) {
+            // 1. ESPERA ACTIVA: LibVLC tarda en pasar a isPlaying = true
+            // Intentamos esperar hasta 5 segundos a que el stream realmente inicie
+            var intentos = 0
+            while (mediaPlayer?.isPlaying == false && intentos < 20) {
+                delay(500)
+                intentos++
+                Log.d("VlcNetwork", "Esperando a que el mediaplayer inicie... intento $intentos")
+            }
+
+            // Si después de la espera sigue sin reproducir, abortamos para no gastar CPU
+            if (mediaPlayer?.isPlaying == false) {
+                Log.e("VlcNetwork", "El bucle OCR no inició: MediaPlayer nunca llegó al estado 'Playing'")
+                return@launch
+            }
+
             var surfaceInternaVLC: SurfaceView? = null
 
             withContext(Dispatchers.Main) {
-                for (i in 0 until binding.vlcPlacaSurface.childCount) {
-                    val child = binding.vlcPlacaSurface.getChildAt(i)
-                    if (child is SurfaceView) {
-                        surfaceInternaVLC = child
-                        break
-                    }
+                // Buscamos en toda la jerarquía de vlcPlacaSurface
+                surfaceInternaVLC = buscarSurfaceViewRecursivo(binding.vlcPlacaSurface)
+
+                if (surfaceInternaVLC == null) {
+                    Log.e("VlcNetwork", "No se encontró un SurfaceView dentro de VLCVideoLayout. " +
+                            "Hijos detectados: ${binding.vlcPlacaSurface.childCount}")
                 }
             }
 
-            // Loop continues safely while streaming process parameters are active
-            while (mediaPlayer?.isPlaying == true) {
-                delay(1000) // Process one frame every second to protect CPU profiles
+            Log.d("VlcNetwork", "✅ Bucle OCR iniciado correctamente.")
 
+            // Loop continues safely while streaming process parameters are active
+            while ( mediaPlayer?.isPlaying == true) {
                 val surfaceTarget = surfaceInternaVLC
                 // Safety boundary: Ensure context surface state is completely solid before copy triggers
                 if (surfaceTarget != null && surfaceTarget.holder.surface.isValid && mediaPlayer?.isPlaying == true) {
 
-                    //val bitmapSnapshot = Bitmap.createBitmap(
-                    lastBitmapReadedPlacas= Bitmap.createBitmap(
-                        surfaceTarget.width,
-                        surfaceTarget.height,
-                        Bitmap.Config.ARGB_8888
-                    )
+                    // Solo creamos el bitmap si es necesario (reutilización de memoria)
+                    if (lastBitmapReadedPlacas == null || lastBitmapReadedPlacas!!.isRecycled ||
+                        lastBitmapReadedPlacas!!.width != surfaceTarget.width) {
 
+                        lastBitmapReadedPlacas = Bitmap.createBitmap(
+                            surfaceTarget.width,
+                            surfaceTarget.height,
+                            Bitmap.Config.ARGB_8888
+                        )
+                    }
+
+                    val bitmapDestino = lastBitmapReadedPlacas!!
                     withContext(Dispatchers.Main) {
                         // Double check validation before launching pixel frame cloning transactions
-                        if (surfaceTarget.holder.surface.isValid) {
+                        if (surfaceTarget.holder.surface.isValid && mediaPlayer?.isPlaying == true) {
                             PixelCopy.request(
                                 surfaceTarget,
                                 //bitmapSnapshot,
-                                lastBitmapReadedPlacas,
+                                bitmapDestino,
                                 { resultado ->
                                     if (resultado == PixelCopy.SUCCESS) {
-                                        procesarOcrEnHiloDeFondo(lastBitmapReadedPlacas)//bitmapSnapshot)
+                                        val bitmapParaProcesar = bitmapDestino.copy(bitmapDestino.config!!, false)
+                                        procesarOcrEnHiloDeFondo(bitmapParaProcesar)//bitmapSnapshot)
                                     } else {
                                         //bitmapSnapshot.recycle() // Avoid dirty leaking allocations
                                         lastBitmapReadedPlacas.recycle()
@@ -852,30 +868,58 @@ class IngresoVehicularActivity : AppCompatActivity() {
                             lastBitmapReadedPlacas.recycle()
                         }
                     }
+                }else if (surfaceInternaVLC == null) {
+                    // Si perdimos la superficie, intentamos recuperarla una vez más
+                    withContext(Dispatchers.Main) {
+                        surfaceInternaVLC = buscarSurfaceViewRecursivo(binding.vlcPlacaSurface)
+                    }
                 }
+                delay(2000) // Process one frame every second to protect CPU profiles
             }
         }
     }
+    private fun buscarSurfaceViewRecursivo(view: View): SurfaceView? {
+        if (view is SurfaceView) return view
+        if (view is ViewGroup) {
+            for (i in 0 until view.childCount) {
+                val child = view.getChildAt(i)
+                val result = buscarSurfaceViewRecursivo(child)
+                if (result != null) return result
+            }
+        }
+        return null
+    }
     private fun procesarOcrEnHiloDeFondo(bitmap: Bitmap) {
-        val image = InputImage.fromBitmap(bitmap, 0)
-
-        textRecognizer.process(image)
-            .addOnSuccessListener { visionText ->
-                // Recycle processed image structure memory rapidly
-                bitmap.recycle()
-                for (block in visionText.textBlocks) {
-                    val textoEncontrado = block.text.trim()
-
-                    // Match criteria regex filter tracking patterns
-                    if (textoEncontrado.matches(Regex("^[a-zA-Z0-9\\s-]{3,8}$"))) {
-                        viewModel.registrarPlacaDetectadaPorOcr(textoEncontrado)
-                        break
+        // 1. Salir del hilo principal INMEDIATAMENTE
+        lifecycleScope.launch(Dispatchers.Default) {
+            try {
+                val image = InputImage.fromBitmap(bitmap, 0)
+                Log.d("VlcNetwork", "OCR checking bitmap placas....")
+                textRecognizer.process(image)
+                    .addOnSuccessListener { visionText ->
+                        // Recycle processed image structure memory rapidly
+                        bitmap.recycle()
+                        for (block in visionText.textBlocks) {
+                            val textoEncontrado = block.text.trim()
+                            val placa_sanitizada = textoEncontrado.extraerPlaca()
+                            Log.d(
+                                "VlcNetwork",
+                                "OCR texto encontrado....${textoEncontrado} placa:${placa_sanitizada}"
+                            )
+                            // Match criteria regex filter tracking patterns
+                            if (placa_sanitizada!!.isNotEmpty()) {
+                                viewModel.registrarPlacaDetectadaPorOcr(placa_sanitizada)
+                                break
+                            }
+                        }
                     }
-                }
+                    .addOnFailureListener {
+                        bitmap.recycle() // Clean leak tracks on structural engine failures
+                    }
+            } catch (e: Exception) {
+                bitmap.recycle()
             }
-            .addOnFailureListener {
-                bitmap.recycle() // Clean leak tracks on structural engine failures
-            }
+        }
     }
     private fun obtenerUltimoFramePixelCopyPlacas(): Bitmap {
         if (lastBitmapReadedPlacas == null || lastBitmapReadedPlacas.isRecycled) {

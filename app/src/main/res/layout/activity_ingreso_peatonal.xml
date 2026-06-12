@@ -16,7 +16,7 @@
         app:layout_constraintTop_toTopOf="parent">
 
         <TextView
-            android:id="@+id/lblTopMensajePeatonal"
+            android:id="@+id/lblTopMensaje"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="CONTROL PEATONAL"
@@ -36,8 +36,19 @@
             android:paddingVertical="4dp"
             android:text="60s"
             android:textColor="#FFAB40"
-            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/btnMenuConfiguracion"
             app:layout_constraintTop_toTopOf="parent" />
+
+        <ImageButton
+            android:id="@+id/btnMenuConfiguracion"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="configurar modo vigilante"
+            android:src="@android:drawable/ic_menu_manage"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:tint="#8B949E" />
 
         <LinearLayout
             android:layout_width="wrap_content"
@@ -45,7 +56,7 @@
             android:layout_marginTop="8dp"
             android:gravity="center_vertical"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/lblTopMensajePeatonal">
+            app:layout_constraintTop_toBottomOf="@id/lblTopMensaje">
             <View
                 android:id="@+id/indicadorColorMicro"
                 android:layout_width="10dp"
@@ -76,26 +87,29 @@
 
         <FrameLayout android:layout_width="match_parent" android:layout_height="match_parent">
             <androidx.camera.view.PreviewView
-                android:id="@+id/previewViewRostro"
+                android:id="@+id/cameraXQrPreview"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
 
             <View
-                android:layout_width="180dp"
-                android:layout_height="180dp"
+                android:id="@+id/qrGuideFrame"
+                android:layout_width="280dp"
+                android:layout_height="280dp"
                 android:layout_gravity="center"
                 android:background="@drawable/qr_frame_border_modern" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnTomarFoto"
-                style="@style/Widget.MaterialComponents.Button.Icon"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="bottom|center_horizontal"
-                android:layout_marginBottom="12dp"
-                android:text="CAPTURAR ROSTRO"
-                android:backgroundTint="#80000000"
-                app:icon="@android:drawable/ic_menu_camera" />
+            <!-- BOTÓN SWITCH CÁMARA QR -->
+            <ImageButton
+                android:id="@+id/btnSwitchCamera"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_gravity="top|end"
+                android:layout_margin="8dp"
+                android:background="#80000000"
+                android:contentDescription="Cambiar camara frontal/posterior"
+                android:src="@android:drawable/ic_menu_rotate"
+                app:tint="#FFFFFF" />
+
         </FrameLayout>
     </com.google.android.material.card.MaterialCardView>
 
@@ -116,6 +130,15 @@
             android:padding="20dp">
 
             <TextView
+                android:id="@+id/lblHistorialDatos"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="PENDIENTE"
+                android:textColor="#8B949E"
+                android:textSize="11sp"
+                android:textStyle="italic" />
+
+            <TextView
                 android:id="@+id/lblInstruccionSeccion"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -125,7 +148,7 @@
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/lblSubtitulosPeatonal"
+                android:id="@+id/lblSubtitulosAsistente"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
@@ -135,14 +158,21 @@
                 android:textColor="#00D4FF" />
 
             <ScrollView
+                android:id="@+id/ScrollViewGridBotones"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
-                android:layout_marginTop="12dp">
+                android:layout_marginTop="12dp"
+                android:fadeScrollbars="false"
+                android:scrollbarThumbVertical="@color/material_dynamic_neutral40">
+
                 <com.google.android.material.chip.ChipGroup
                     android:id="@+id/containerGridBotones"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
+                    android:layout_height="wrap_content"
+                    app:chipSpacingHorizontal="8dp"
+                    app:chipSpacingVertical="8dp"
+                    app:singleSelection="true"/>
             </ScrollView>
 
             <com.google.android.material.textfield.TextInputLayout
@@ -158,14 +188,39 @@
                     android:textSize="24sp" />
             </com.google.android.material.textfield.TextInputLayout>
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnGuardarPeatonal"
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:layout_marginTop="12dp"
-                android:text="SOLICITAR ACCESO"
-                android:backgroundTint="#00D4FF"
-                app:cornerRadius="12dp" />
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnReiniciarRegistro"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:layout_width="0dp"
+                    android:layout_height="60dp"
+                    android:layout_weight="1"
+                    android:text="CANCELAR"
+                    android:textColor="#FF5252" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSiguientePasoManual"
+                    android:layout_width="0dp"
+                    android:layout_height="60dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:backgroundTint="#00D4FF"
+                    android:text="SIGUIENTE"
+                    app:cornerRadius="12dp" />
+            </LinearLayout>
+            <TextView
+                android:id="@+id/lbStatusAsistente"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Estado: Standby"
+                android:textAlignment="viewEnd"
+                android:textColor="#03A9F4"
+                android:textSize="10sp" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
@@ -174,6 +229,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#ffffff"
+        android:elevation="5dp"
         android:padding="24dp"
         android:visibility="gone"
         tools:layout_editor_absoluteX="12dp"

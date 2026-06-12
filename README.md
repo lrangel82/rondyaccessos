@@ -74,3 +74,9 @@ Este protocolo define la identidad visual y estructural para todos los módulos 
    - Lado Derecho (60%): Panel de interacción completo con ScrollView para garantizar que los botones de acción no salgan del viewport.
 
 Instrucción para la IA: "Al diseñar o refactorizar cualquier layout de Rondy Accesos, aplica estrictamente este protocolo, priorizando la legibilidad para guardias de seguridad y la estética de centro de control moderno."
+
+
+
+
+# Promt para generar dialogos para la animacion
+Podrias generar un prompt de un dialogo y de una secuencia de animacion de un clip corto que permita promocionar los aspectos mas imporntates de la aplicacion Rondy.

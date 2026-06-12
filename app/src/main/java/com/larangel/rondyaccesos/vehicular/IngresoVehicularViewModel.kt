@@ -196,6 +196,7 @@ class IngresoVehicularViewModel(
     // -- CAMARAS
     fun actualizarUrlPlacasRtsp(nuevaUrl: String) {
         urlCamaraPlacasRtsp = nuevaUrl
+        mySettings.saveString("URL_CAMARA_PLACAS_PREFERIDA", nuevaUrl)
         _camaraPlacaFalla.value = false
         controlarCicloDeVidaDeStreaming()
     }
@@ -209,11 +210,12 @@ class IngresoVehicularViewModel(
         val placaVacia = _uiState.value.placaInput.trim().isEmpty()
 
         if (paso == CaptureStep.SELECCION_MOTIVO || (paso == CaptureStep.CAPTURA_PLACA && placaVacia)) {
+        //if (placaVacia){
             _vlcStreamActive.value = true
-            Log.d("CameraManager", "Encendiendo Stream RTSP para lectura OCR de placas.")
+            Log.d("VLCManager", "Encendiendo Stream RTSP para lectura OCR de placas.")
         } else {
             _vlcStreamActive.value = false
-            Log.d("CameraManager", "Apagando Stream RTSP para liberar memoria y ancho de banda.")
+            Log.d("VLCManager", "Apagando Stream RTSP para liberar memoria y ancho de banda.")
         }
         evaluarPreferenciaPlacaExistente(_uiState.value.placaInput)
     }
@@ -922,7 +924,7 @@ class IngresoVehicularViewModel(
             val fechaInicio = exc[7].toString()
             val fechaFin    = exc[8].toString()
             val conductor_ex= exc[3].toString()
-            val placas      = exc[4].toString()
+            val placas_ex   = exc[4].toString()
             val descripcion = exc[5].toString()
             val status_vs_descripcion= exc[6].toString()
             if (!status.equals("aprobada", ignoreCase = true)) continue
@@ -937,8 +939,8 @@ class IngresoVehicularViewModel(
             }
 
             // Verification layers
-            val tieneConductorFiltrado = conductor.isNotEmpty()
-            val tienePlacaFiltrada = placas.isNotEmpty()
+            val tieneConductorFiltrado = conductor_ex.isNotEmpty()
+            val tienePlacaFiltrada = placas_ex.isNotEmpty()
 
             val posiblesDenegados: List<String> = listOf("NO","MOROSO","NIEGA ACCESO","DENEGADO")
             val esDenegado = posiblesDenegados.any { palabra ->
@@ -960,7 +962,7 @@ class IngresoVehicularViewModel(
             }
 
             val coincideConductor = tieneConductorFiltrado && conductor_ex.equals(conductor, ignoreCase = true)
-            val coincidePlaca = tienePlacaFiltrada && placas.equals(placa, ignoreCase = true)
+            val coincidePlaca = tienePlacaFiltrada && placas_ex.equals(placa, ignoreCase = true)
 
             if (coincideConductor || coincidePlaca) {
                 return excepcion // Match found

@@ -1,6 +1,7 @@
 package com.larangel.rondyaccesos.models.sockets
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import androidx.lifecycle.AtomicReference
 import com.larangel.rondyaccesos.models.*
@@ -9,6 +10,8 @@ import io.ktor.network.sockets.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.serialization.json.Json
 import java.net.InetAddress
 import java.net.NetworkInterface
@@ -21,7 +24,7 @@ class RondyNetworkManager(
     private val mySettings: MySettings
 ) {
     private val selectorManager = SelectorManager(Dispatchers.IO)
-    private val PORT = 35420
+    private val PORT = 45001
 
     // Lista de nodos conocidos (Punto 1 y 6)
     private val _nodosActivos = MutableStateFlow<Set<RondyNodo>>(emptySet())
@@ -32,26 +35,39 @@ class RondyNetworkManager(
     //ATOMICS para respuestas
     val RESPUESTA_SOLICITAR_AUTORIZACION = AtomicReference<String>("")
 
+    private val _consoleLogs = MutableStateFlow<List<String>>(emptyList())
+    val consoleLogs: StateFlow<List<String>> = _consoleLogs
+
 
     init {
         iniciarServidorTCP()
         realizarHandshakeInicial()
     }
 
+    private fun logToConsole(tag: String, msg: String) {
+        Log.d(tag, msg) // Seguir viéndolo en Android Studio
+
+        val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
+        val newLog = "[$timestamp] $msg"
+
+        // Mantener solo las últimas 50 líneas para no saturar la memoria
+        _consoleLogs.update { (it + newLog).takeLast(50) }
+    }
+
     // PUNTO 1, 4 y 7: Handshake y Descubrimiento
-    private fun realizarHandshakeInicial() = scope.launch {
+    fun realizarHandshakeInicial(force: Boolean = false) = scope.launch {
         val _cacheIps = mySettings.getString("CACHE_NODOS_IPS","") // Guardar como "192.168.1.5,192.168.1.10"
         val cacheIps = _cacheIps.split(",")
 
-//        if (cacheIps.isNotEmpty()) {
-//            // Intentar avisar a los que ya conocemos
-//            cacheIps.forEach { ip ->
-//                enviarMensaje(ip, MessageType.ANUNCIO_CONEXION)
-//            }
-//        } else {
+        if (cacheIps.isNotEmpty() && !force) {
+            // Intentar avisar a los que ya conocemos
+            cacheIps.forEach { ip ->
+                enviarMensaje(ip, MessageType.ANUNCIO_CONEXION)
+            }
+        } else {
             // PUNTO 7: Buscar en el segmento de red si no hay nada en cache
             descubrirNodosEnSegmento()
-        //}
+        }
     }
 
     // PUNTO 2: Replicar ingreso a todos
@@ -74,21 +90,21 @@ class RondyNetworkManager(
     private fun iniciarServidorTCP() = scope.launch(Dispatchers.IO) {
         try {
             val serverSocket = aSocket(selectorManager).tcp().bind("0.0.0.0", PORT)
-            Log.d("RondyNetwork", "Servidor TCP iniciado en puerto $PORT")
+            logToConsole("RondyNetwork", "Servidor TCP iniciado en puerto $PORT")
             while (isActive) {
                 val socket = serverSocket.accept()
                 val remoteAddress = socket.remoteAddress.toString()
-                Log.d("RondyNetwork", "📡 Nueva conexión entrante desde: $remoteAddress")
+                logToConsole("RondyNetwork", "📡 Nueva conexión entrante desde: $remoteAddress")
                 launch {
                     try {
                         procesarSocketEntrante(socket)
                     } catch (e: Exception) {
-                        Log.e("RondyNetwork", "Error procesando socket de $remoteAddress: ${e.message}")
+                        logToConsole("RondyNetwork", "Error procesando socket de $remoteAddress: ${e.message}")
                     }
                 }
             }
         } catch (e: Exception) {
-            Log.e("RondyNetwork", "Fallo crítico al iniciar servidor: ${e.message}")
+            logToConsole("RondyNetwork", "Fallo crítico al iniciar servidor: ${e.message}")
         }
     }
 
@@ -98,71 +114,40 @@ class RondyNetworkManager(
         if (miIp == "127.0.0.1") return@withContext
 
         // Extraer el prefijo (ej: de 192.168.1.50 a 192.168.1.)
-        val prefix = miIp.substringBeforeLast(".") + "."
+        val prefix = if(esEmulador()) "10.0.2." else miIp.substringBeforeLast(".") + "."
 
-        Log.d("RondyNetwork", "Iniciando escaneo de red en segmento: ${prefix}0/24")
+        logToConsole("RondyNetwork", "Iniciando escaneo de red en segmento: ${prefix}0/24 myIP:${miIp}")
 
         // Lanzar 254 corrutinas en paralelo para un escaneo rápido
         (1..254).map { i ->
             launch {
                 val targetIp = prefix + i
                 if (targetIp == miIp) return@launch // Ignorarme a mí mismo
-                Log.d("RondyNetwork", "testeando SOCKET en ip: $targetIp")
+                //logToConsole("RondyNetwork", "testeando SOCKET en ip: $targetIp")
                 try {
-                    // Intentar abrir un socket con un tiempo de espera de 1 segundo
-                    withTimeout(2000) {
-                        val socket = aSocket(selectorManager).tcp().connect(targetIp, PORT)
-                        val output = socket.openWriteChannel(autoFlush = true)
-                        val input = socket.openReadChannel()
+                    enviarMensaje(targetIp,MessageType.ANUNCIO_CONEXION, printError = false)
 
-                        // Si conecta, enviamos el Anuncio de Conexión (Punto 1 y 4)
-                        try {
-                            val anuncio = SocketMessage(
-                                type = MessageType.ANUNCIO_CONEXION,
-                                senderIp = miIp,
-                                senderRole = miRol
-                            )
-
-                            val jsonMsg = Json.encodeToString(SocketMessage.serializer(), anuncio)
-                            //val jsonMsg = "{\"type\":\"PING\"}"
-
-                            // ESCRIBIMOS Y FORZAMOS FINALIZACIÓN DEL FLUJO DE SALIDA
-                            output.writeStringUtf8(jsonMsg + "\n")
-                            // No cerramos el socket aún, pero le decimos al canal que terminamos de enviar
-                            // Esto ayuda a servidores que esperan el final del stream
-                            delay(300)
-
-                            // LEEMOS RESPUESTA
-                            val responseLine = withTimeoutOrNull(2000) {
-                                input.readUTF8Line()
-                            }
-
-                            if (responseLine != null) {
-                                val resp = Json.decodeFromString<SocketMessage>(responseLine)
-                                resp.listaNodos?.forEach { registrarNodo(it.ip, it.role) }
-                                Log.d("RondyNetwork", "✅ Nodo verificado en: $targetIp")
-                            } else {
-                                Log.w("RondyNetwork", "⚠️ $targetIp aceptó conexión pero no respondió datos.")
-                            }
-                        } finally {
-                            // Cierre ordenado
-                            socket.close()
-                        }
-                    }
                 } catch (e: Exception) {
                     val errorMsg = e.message ?: e.javaClass.simpleName
-                    Log.w("RondyNetwork", "No se pudo conectar a $targetIp: ${errorMsg}")
+                    logToConsole("RondyNetwork", "No se pudo conectar a $targetIp: ${errorMsg}")
                 }
             }
         }.joinAll() // Esperar a que termine el barrido completo
-        Log.d("RondyNetwork", "Finalizado escaneo de companieros en red: ${prefix}0/24")
+        logToConsole("RondyNetwork", "Finalizado escaneo de companieros en red: ${prefix}0/24")
     }
 
+    //##### ENTRADAS AL SOCKET
     private suspend fun procesarSocketEntrante(socket: Socket) {
         val input = socket.openReadChannel()
         val output = socket.openWriteChannel(autoFlush = true)
+        val remoteAddress = socket.remoteAddress.toString().substringAfter("/").substringBefore(":")
         try {
-            val line = input.readUTF8Line() ?: return
+            val line = withTimeoutOrNull(4000) {
+                input.readUTF8Line()
+            }
+            logToConsole("RondyNetwork", "\uD83D\uDCF2 Recibiendo de $remoteAddress: LECTURA SOCKET: $line")
+            //val line = input.readUTF8Line() ?: return
+            if (line.isNullOrEmpty()) return
             val msg = Json.decodeFromString<SocketMessage>(line)
 
             when(msg.type) {
@@ -183,11 +168,13 @@ class RondyNetworkManager(
                 }
                 MessageType.ACTUALIZACION_LISTA -> {
                     // PUNTO 5 y 6: Sincronizar nodos
+                    logToConsole("RondyNetwork", "Recibido ACTUALIZACION_LISTA ${msg.senderRole}: ${msg.listaNodos}")
+                    registrarNodo(remoteAddress, msg.senderRole)
                     msg.listaNodos?.forEach { registrarNodo(it.ip, it.role) }
                 }
                 MessageType.AVISO_ESPECIFICO -> {
                     // COMANDOS ENTRE MODULOS
-                    Log.d("RondyNetwork", "Recibido aviso de ${msg.senderIp}: ${msg.mensajeExtra}")
+                    logToConsole("RondyNetwork", "Recibido aviso de ${msg.senderIp}: ${msg.mensajeExtra}")
                     when (msg.mensajeExtra) {
                         "SOLICITAR_AUTORIZACION" -> {
                             //Inicializa con vacio
@@ -207,6 +194,7 @@ class RondyNetworkManager(
         }
     }
 
+
     // PUNTO 8: Enviar avisos específicos
     fun enviarAvisoModulo(rolTarget: String, mensaje: String) = scope.launch {
         _nodosActivos.value.filter { it.role == rolTarget }.forEach { nodo ->
@@ -216,7 +204,9 @@ class RondyNetworkManager(
 
     fun solicitarAutorizacionCaseta(registro: AccesoBitacora? = null)= scope.launch{
         _nodosActivos.value.filter { it.role == "CASETA" }.forEach { nodo ->
-            enviarMensaje(nodo.ip,MessageType.AVISO_ESPECIFICO, mensajeExtra = "SOLICITAR_AUTORIZACION", registro = registro)
+            val ipDestino = if (esEmulador()) "10.0.2.2" else nodo.ip
+            logToConsole("RondyNetwork", "Solicitando autorización a CASETA en $ipDestino...")
+            enviarMensaje(ipDestino,MessageType.AVISO_ESPECIFICO, mensajeExtra = "SOLICITAR_AUTORIZACION", registro = registro)
         }
     }
 
@@ -256,23 +246,35 @@ class RondyNetworkManager(
     }
 
     // Función genérica para enviar mensajes TCP (Punto 2 y 8)
-    private suspend fun enviarMensaje( ip: String,type: MessageType, registro: AccesoBitacora? = null, mensajeExtra: String? = null) {
-        try {
-            withTimeout(2000) {
-                val socket = aSocket(selectorManager).tcp().connect(ip, PORT)
-                val output = socket.openWriteChannel(autoFlush = true)
-                val msg = SocketMessage(
-                    type = type,
-                    senderIp = getMiIp(),
-                    senderRole = miRol,
-                    registro = registro,
-                    mensajeExtra = mensajeExtra.toString()
+    private suspend fun enviarMensaje( ip: String,type: MessageType, registro: AccesoBitacora? = null, mensajeExtra: String? = null, printError: Boolean? = true) {
+        withContext(Dispatchers.IO) {
+            try {
+                withTimeout(2000) {
+                    val socket = aSocket(selectorManager).tcp().connect(ip, PORT)
+                    val output = socket.openWriteChannel(autoFlush = true)
+                    val msg = SocketMessage(
+                        type = type,
+                        senderIp = getMiIp(),
+                        senderRole = miRol,
+                        registro = registro,
+                        mensajeExtra = mensajeExtra.toString()
+                    )
+                    output.writeStringUtf8(
+                        Json.encodeToString(
+                            SocketMessage.serializer(),
+                            msg
+                        ) + "\n"
+                    )
+                    logToConsole("RondyNetwork", "\uD83D\uDCE4 Enviado ${type} a ${ip} data....")
+                    //procesarSocketEntrante(socket)
+                    socket.close()
+                }
+            } catch (e: Exception) {
+                if (printError == true) logToConsole(
+                    "RondyNetwork",
+                    "Error enviando $type a $ip: ${e.message}"
                 )
-                output.writeStringUtf8(Json.encodeToString(SocketMessage.serializer(), msg) + "\n")
-                socket.close()
             }
-        } catch (e: Exception) {
-            Log.e("RondyNetwork", "Error enviando $type a $ip: ${e.message}")
         }
     }
 
@@ -303,5 +305,24 @@ class RondyNetworkManager(
         } catch (e: Exception) {
             false
         }
+    }
+
+    fun esEmulador(): Boolean {
+        return (Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic"))
+                || Build.FINGERPRINT.contains("generic")
+                || Build.FINGERPRINT.contains("unknown")
+                || Build.HARDWARE.contains("goldfish")
+                || Build.HARDWARE.contains("ranchu")
+                || Build.MODEL.contains("google_sdk")
+                || Build.MODEL.contains("Emulator")
+                || Build.MODEL.contains("Android SDK built for x86")
+                || Build.MANUFACTURER.contains("Genymotion")
+                || Build.PRODUCT.contains("sdk_google")
+                || Build.PRODUCT.contains("google_sdk")
+                || Build.PRODUCT.contains("sdk")
+                || Build.PRODUCT.contains("sdk_x86")
+                || Build.PRODUCT.contains("vbox86p")
+                || Build.PRODUCT.contains("emulator")
+                || Build.PRODUCT.contains("simulator")
     }
 }

@@ -21,8 +21,8 @@ data class SocketMessage(
     val senderRole: String, // CASETA, INGRESO_VEHICULAR, etc.
     val registro: AccesoBitacora? = null,
     val listaNodos: List<RondyNodo>? = null, // Para el punto 4 y 6
-    val mensajeExtra: String = "",
-    val respuestaCommando: String = ""
+    val mensajeExtra: String? = "",
+    val respuestaCommando: String? = ""
 )
 
 @Serializable
@@ -30,4 +30,7 @@ data class RondyNodo(
     val ip: String,
     val role: String,
     var lastSeen: Long = System.currentTimeMillis()
-)
+){
+    override fun equals(other: Any?): Boolean = (other as? RondyNodo)?.ip == ip
+    override fun hashCode(): Int = ip.hashCode()
+}

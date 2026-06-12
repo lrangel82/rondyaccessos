@@ -8,14 +8,21 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.Toast
+import androidx.activity.result.launch
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.larangel.rondyaccesos.R
+import com.larangel.rondyaccesos.RondyApplication
 import com.larangel.rondyaccesos.databinding.ActivityAdminMainBinding
 import com.larangel.rondyaccesos.models.com.larangel.rondyaccesos.utils.QrGenerator
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 class AdminMainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityAdminMainBinding
+    private val networkManager by lazy { (application as RondyApplication).networkManager }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -23,7 +30,23 @@ class AdminMainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         setupMenuClickActions()
+        observeLogs()
     }
+
+    private fun observeLogs() {
+        lifecycleScope.launch {
+            networkManager.consoleLogs.collectLatest { logs ->
+                // Unir los logs con saltos de línea
+                binding.txtConsole.text = logs.joinToString("\n")
+
+                // Auto-scroll hacia abajo
+                binding.scrollConsole.post {
+                    binding.scrollConsole.fullScroll(View.FOCUS_DOWN)
+                }
+            }
+        }
+    }
+
 
     private fun setupMenuClickActions() {
         binding.btnGestionTerraza.setOnClickListener {
@@ -43,6 +66,15 @@ class AdminMainActivity : AppCompatActivity() {
         binding.btnVerBitacora.setOnClickListener {
             Toast.makeText(this, "Cargando Historial Local...", Toast.LENGTH_SHORT).show()
             // TODO: Load recycler view displaying local logs from SheetTable.BITACORA_ACCESOS
+        }
+
+        binding.btnBuscarAmigosRED.setOnClickListener {
+            Toast.makeText(this, "Iniciando escaneo...", Toast.LENGTH_SHORT).show()
+
+            // Si realizarHandshakeInicial es una función suspend, usa launch:
+            lifecycleScope.launch {
+                networkManager.realizarHandshakeInicial( force=true)
+            }
         }
     }
 

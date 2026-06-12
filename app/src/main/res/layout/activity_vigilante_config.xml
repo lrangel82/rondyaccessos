@@ -75,5 +75,29 @@
             android:text="5) Módulo Salida Peatonal"
             android:backgroundTint="#F57C00"/>
 
+        <Button
+            android:id="@+id/btnBuscarAmigosRED"
+            android:layout_width="280dp"
+            android:layout_height="55dp"
+            android:layout_marginTop="80dp"
+            android:backgroundTint="#CDDC39"
+            android:text="Buscar amigos RED 📜" />
+        <ScrollView
+            android:id="@+id/scrollConsole"
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:background="#1E1E1E"
+            android:padding="8dp">
+
+            <TextView
+                android:id="@+id/txtConsole"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:text="--- Consola de Red ---"
+                android:textColor="#00FF00"
+                android:textSize="12sp" />
+        </ScrollView>
+
     </LinearLayout>
 </ScrollView>

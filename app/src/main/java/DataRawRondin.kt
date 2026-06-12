@@ -1505,6 +1505,9 @@ class DataRawRondin(
         return true
 
     }
+    fun actulizarSalidaAccesosPeatonal(conductor:String, fechaSalidaNueva: String): Boolean{
+        return false
+    }
 
     //Whatsapp Telefonos
     fun getWhatsappTelefonos(forceLoad: Boolean = false, createIfNotExist: Boolean = false): List<List<Any>> = runBlocking {
