@@ -1,103 +1,125 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#121212"
-    android:fillViewport="true"
-    android:fitsSystemWindows="true">
+    android:background="#F5F5F5">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="24dp"
-        android:gravity="center_horizontal">
+        android:padding="16dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Configuración de Módulo"
-            android:textColor="#FFFFFF"
+            android:text="Configuración de Nodo Satélite"
             android:textSize="22sp"
             android:textStyle="bold"
-            android:layout_marginTop="16dp"/>
+            android:layout_marginBottom="16dp"/>
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Asigne la función de vigilancia para este dispositivo"
-            android:textColor="#888888"
-            android:textSize="13sp"
-            android:layout_marginTop="4dp"
-            android:layout_marginBottom="24dp"/>
-
-        <!-- Botón 1: Módulo Caseta Principal -->
-        <Button
-            android:id="@+id/btnConfigCaseta"
-            android:layout_width="300dp"
-            android:layout_height="55dp"
-            android:text="1) Módulo Caseta (Estación Central)"
-            android:backgroundTint="#6200EE"
-            android:layout_marginBottom="12dp"/>
-
-        <!-- Botón 2: Ingreso Vehicular -->
-        <Button
-            android:id="@+id/btnConfigIngresoVehicular"
-            android:layout_width="300dp"
-            android:layout_height="55dp"
-            android:text="2) Módulo Ingreso Vehicular"
-            android:backgroundTint="#1976D2"
-            android:layout_marginBottom="12dp"/>
-
-        <!-- Botón 3: Ingreso Peatonal -->
-        <Button
-            android:id="@+id/btnConfigIngresoPeatonal"
-            android:layout_width="300dp"
-            android:layout_height="55dp"
-            android:text="3) Módulo Ingreso Peatonal"
-            android:backgroundTint="#0288D1"
-            android:layout_marginBottom="12dp"/>
-
-        <!-- Botón 4: Salida Vehicular -->
-        <Button
-            android:id="@+id/btnConfigSalidaVehicular"
-            android:layout_width="300dp"
-            android:layout_height="55dp"
-            android:text="4) Módulo Salida Vehicular"
-            android:backgroundTint="#388E3C"
-            android:layout_marginBottom="12dp"/>
-
-        <!-- Botón 5: Salida Peatonal -->
-        <Button
-            android:id="@+id/btnConfigSalidaPeatonal"
-            android:layout_width="300dp"
-            android:layout_height="55dp"
-            android:text="5) Módulo Salida Peatonal"
-            android:backgroundTint="#F57C00"/>
-
-        <Button
-            android:id="@+id/btnBuscarAmigosRED"
-            android:layout_width="280dp"
-            android:layout_height="55dp"
-            android:layout_marginTop="80dp"
-            android:backgroundTint="#CDDC39"
-            android:text="Buscar amigos RED 📜" />
-        <ScrollView
-            android:id="@+id/scrollConsole"
+        <!-- SECCIÓN 1: ROL DEL NODO -->
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
-            android:layout_height="200dp"
-            android:background="#1E1E1E"
-            android:padding="8dp">
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="4dp"
+            android:layout_marginBottom="16dp">
 
-            <TextView
-                android:id="@+id/txtConsole"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:fontFamily="monospace"
-                android:text="--- Consola de Red ---"
-                android:textColor="#00FF00"
-                android:textSize="12sp" />
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="1. Seleccionar Rol de este Dispositivo"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="12dp"/>
+
+                <GridLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:columnCount="2"
+                    android:alignmentMode="alignMargins">
+
+                    <Button android:id="@+id/btnConfigCaseta" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="0dp" android:layout_gravity="fill" android:layout_columnWeight="1" android:text="Caseta" android:textSize="11sp"/>
+                    <Button android:id="@+id/btnConfigIngresoVehicular" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="0dp" android:layout_gravity="fill" android:layout_columnWeight="1" android:text="In. Vehicular" android:textSize="11sp"/>
+                    <Button android:id="@+id/btnConfigIngresoPeatonal" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="0dp" android:layout_gravity="fill" android:layout_columnWeight="1" android:text="In. Peatonal" android:textSize="11sp"/>
+                    <Button android:id="@+id/btnConfigSalidaVehicular" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="0dp" android:layout_gravity="fill" android:layout_columnWeight="1" android:text="Sal. Vehicular" android:textSize="11sp"/>
+                    <Button android:id="@+id/btnConfigSalidaPeatonal" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="0dp" android:layout_gravity="fill" android:layout_columnWeight="1" android:text="Sal. Peatonal" android:textSize="11sp"/>
+                </GridLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- SECCIÓN 2: CONTROL DE PUERTA / BARRERA -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="4dp"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="2. Control de Puerta / Barrera"
+                    android:textStyle="bold" />
+
+                <RadioGroup
+                    android:id="@+id/rgDoorType"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="8dp">
+                    <RadioButton android:id="@+id/rbHttp" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="HTTP" />
+                    <RadioButton android:id="@+id/rbDahua" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Dahua" />
+                </RadioGroup>
+
+                <!-- Campos HTTP -->
+                <LinearLayout
+                    android:id="@+id/layoutHttpFields"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+                    <EditText android:id="@+id/etUrlOpen" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="URL Apertura (http://...)" />
+                    <Button android:id="@+id/btnTestHttp" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Probar Pulsador HTTP" android:layout_marginTop="8dp"/>
+                </LinearLayout>
+
+                <!-- Campos Dahua -->
+                <LinearLayout
+                    android:id="@+id/layoutDahuaFields"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+                    <EditText android:id="@+id/etDahuaIp" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="IP Dahua (192.168.x.x)" />
+                    <EditText android:id="@+id/etDahuaUser" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Usuario" />
+                    <EditText android:id="@+id/etDahuaPass" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Contraseña" android:inputType="textPassword" />
+
+                    <Button android:id="@+id/btnDahuaConnect" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Leer Puertas Disponibles" />
+
+                    <Spinner android:id="@+id/spDahuaDoors" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:visibility="gone"/>
+                    <Button android:id="@+id/btnTestDahua" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Probar Apertura Dahua" android:layout_marginTop="8dp" android:visibility="gone"/>
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- SECCIÓN 3: CONSOLA Y RED -->
+        <Button android:id="@+id/btnBuscarAmigosRED" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Escanear Red (Modo Satélite)" style="@style/Widget.MaterialComponents.Button.Icon" app:icon="@android:drawable/ic_menu_search"/>
+
+        <ScrollView android:id="@+id/scrollConsole" android:layout_width="match_parent" android:layout_height="150dp" android:background="#000" android:layout_marginTop="8dp" android:padding="8dp">
+            <TextView android:id="@+id/txtConsole" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#0F0" android:fontFamily="monospace" android:textSize="10sp" android:text="Logs de red..."/>
         </ScrollView>
 
     </LinearLayout>
