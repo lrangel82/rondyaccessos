@@ -29,7 +29,7 @@ enum class SheetTable(
 
 
     // --- NUEVAS TABLAS PARA EL FLUJO RONDY ACCESOS ---
-    TIPO_ACCESOS("tipoAccesos","TipoAccesos","A:H",listOf("name","excepcionesDinamicas","variosDomicilios","calleDefault","numeroDefault","autorizadoPorCaseta","EsEmergencia","RequierePermisoAdmon")),
+    TIPO_ACCESOS("tipoAccesos","TipoAccesos","A:J",listOf("name","excepcionesDinamicas","variosDomicilios","calleDefault","numeroDefault","autorizadoPorCaseta","EsEmergencia","RequierePermisoAdmon","esVehicular","esPeatonal")),
     BITACORA_ACCESOS("ingreso", "BitacoraAccesos", "A:M",listOf("FechaCreado", "FechaIngreso", "Placa", "Calle", "Numero", "Tipo", "Conductor", "Desc", "Foto1", "Foto2", "qr_data", "fechaSalida","status")),     //
     EXCEPCIONES("Excepciones", "ExcepcionesDom", "A:L", listOf("id","calle","numero","conductor","placas","descripcion","status_vs_descripcion","fechainicio","fechafin","fecha_creado","status","coto")),     // Calle, Numero, TipoExcepcion, ValidoDesde, ValidoHasta, Notas
     DOMICILIOS_MOROSOS("saldos", "DomiciliosMorosos", "A:E", listOf("ID","Calle","Numero","Deuda","Fecha")),
@@ -84,6 +84,7 @@ enum class CaptureStep {
     CONFRMAR_DOMICILIO,
     CAPTURA_NOMBRE,
     CAPTURA_PLACA,
+    CAPTURA_ROSTRO,
     PROCESANDO_AUTORIZACION,
     PREGUNTA_OTRA_DIRECCION
 }
@@ -97,7 +98,9 @@ data class TipoAccesos(
     val numeroDefault: String,
     val autorizadoPorCaseta: Boolean,
     val EsEmergencia: Boolean,
-    val RequierePermisoAdmon: Boolean
+    val RequierePermisoAdmon: Boolean,
+    val esVehicular: Boolean,
+    val esPeatonal: Boolean
     ){
     constructor(sheetRow: List<String>) : this(
         name = sheetRow[0].toString(),
@@ -108,6 +111,8 @@ data class TipoAccesos(
         autorizadoPorCaseta = "SI 1 TRUE VERDADERO".contains(sheetRow[5].toString().uppercase()),
         EsEmergencia = "SI 1 TRUE VERDADERO".contains(sheetRow[6].toString().uppercase()),
         RequierePermisoAdmon = "SI 1 TRUE VERDADERO".contains(sheetRow[7].toString().uppercase()),
+        esVehicular = "SI 1 TRUE VERDADERO".contains(sheetRow[8].toString().uppercase()),
+        esPeatonal = "SI 1 TRUE VERDADERO".contains(sheetRow[9].toString().uppercase()),
     )
     //listOf("name","excepcionesDinamicas","variosDomicilios","calleDefault","numeroDefault","autorizadoPorCaseta","EsEmergencia"))
     // Convierte el objeto de negocio en una lista plana de Any/String compatible con Google Sheets API
@@ -120,7 +125,9 @@ data class TipoAccesos(
             numeroDefault.trim(),
             if(autorizadoPorCaseta) "1" else "0",
             if(EsEmergencia) "1" else "0",
-            if(RequierePermisoAdmon) "1" else "0"
+            if(RequierePermisoAdmon) "1" else "0",
+            if(esVehicular) "1" else "0",
+            if(esPeatonal) "1" else "0"
         )
     }
 }

@@ -79,8 +79,7 @@ dependencies {
     implementation("androidx.camera:camera-extensions:$cameraxVersion")
     implementation("org.videolan.android:libvlc-all:3.6.0")
 
-    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.0")
-    implementation("com.google.mlkit:barcode-scanning:17.2.0")
+
 
     implementation("com.google.zxing:core:3.5.3")
 
@@ -95,5 +94,15 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
 
     implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")
+
+    // Google ML Kit (Detección de Rostros y QR)
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.0")
+    implementation("com.google.mlkit:barcode-scanning:17.2.0")
+    implementation("com.google.mlkit:face-detection:16.1.7")
+    implementation("com.google.code.gson:gson:2.10.1")
+
+    // TensorFlow Lite (Para el modelo FaceNet que genera el vector matemático)
+    implementation("org.tensorflow:tensorflow-lite:2.14.0")
+    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
 
 }

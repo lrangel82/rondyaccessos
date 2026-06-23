@@ -580,6 +580,14 @@ class IngresoVehicularActivity : AppCompatActivity() {
                             binding.btnSiguientePasoManual.text = "Solicitar Autorización 🔐"
                         }
 
+                        CaptureStep.CAPTURA_ROSTRO ->{
+                            binding.lblInstruccionSeccion.text = "5. CAPTURAR ROSTRO!!! Esto en vehiculos no debe pasar:"
+                            binding.ScrollViewGridBotones.visibility = View.GONE
+                            binding.txtInputManual.visibility = View.GONE
+                            binding.btnSiguientePasoManual.visibility = View.GONE
+                            binding.btnSiguientePasoManual.text = "BUGGG ROSTRO NUNCA"
+                        }
+
                         CaptureStep.PROCESANDO_AUTORIZACION -> {
                             ocultarTecladoVirtual()
                             controlarEstadoMicrofono(habilitar = false)

@@ -18,11 +18,13 @@ import android.icu.util.Calendar
 import android.os.Build
 import android.util.Base64
 import com.google.android.gms.maps.model.LatLng
+import com.google.gson.Gson
 //import com.larangel.rondyaccesos.AlarmReceiver
 import com.larangel.rondyaccesos.R
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.sqrt
 
 /**
  * Busca una placa en un texto usando Regex y devuelve el valor o null
@@ -96,6 +98,41 @@ fun String.telefonoParaTwilio(): String {
     } else {
         "" // Retorna una cadena vacía si no es un número válido de 13 caracteres
     }
+}
+
+fun String.esDenegado(): Boolean {
+    val posiblesDenegados: List<String> = listOf("NO","MOROSO","NIEGA ACCESO","DENEGADO")
+    val esDenegado = posiblesDenegados.any { palabra ->
+        this.contains(palabra, ignoreCase = true)
+    }
+    return esDenegado
+}
+
+/**
+ * Calcula la distancia Euclidiana (L2 Norm) entre este vector de características
+ * y otro vector generado por el modelo FaceNet.
+ */
+fun FloatArray.euclideanDistance(other: FloatArray): Float {
+    // Comprobación de seguridad: Ambos vectores deben tener el mismo tamaño (ej. 512)
+    require(this.size == other.size) {
+        "Los vectores deben tener la misma longitud (${this.size} != ${other.size})"
+    }
+
+    var sum = 0.0f
+    for (i in this.indices) {
+        val diff = this[i] - other[i]
+        sum += diff * diff
+    }
+
+    return sqrt(sum)
+}
+fun FloatArray.toJsonString(): String {
+    val gson = Gson()
+    return gson.toJson(this)
+}
+fun String.toFloatArray(): FloatArray {
+    val gson = Gson()
+    return gson.fromJson(this, FloatArray::class.java)
 }
 
 //*** Buscar TAGS/PLACAS validos

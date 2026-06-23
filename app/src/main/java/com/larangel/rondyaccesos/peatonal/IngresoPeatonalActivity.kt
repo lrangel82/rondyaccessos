@@ -7,7 +7,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Matrix
+import android.graphics.Rect
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Bundle
@@ -37,6 +40,9 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.chip.Chip
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.face.FaceDetection
+import com.google.mlkit.vision.face.FaceDetectorOptions
+import org.tensorflow.lite.Interpreter
 import com.larangel.rondyaccesos.RondyApplication
 import com.larangel.rondyaccesos.databinding.ActivityIngresoPeatonalBinding
 import com.larangel.rondyaccesos.models.CaptureStep
@@ -49,8 +55,13 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import com.larangel.rondyaccesos.R
 import com.larangel.rondyaccesos.models.network.WhatsappAuthStatus
+import com.larangel.rondyaccesos.utils.euclideanDistance
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import java.io.FileInputStream
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.nio.channels.FileChannel
 
 class IngresoPeatonalActivity : AppCompatActivity() {
 
@@ -73,6 +84,15 @@ class IngresoPeatonalActivity : AppCompatActivity() {
     private var cameraProvider: ProcessCameraProvider? = null
     private var cameraExecutor: ExecutorService? = Executors.newSingleThreadExecutor()
     private val qrScannerClient = BarcodeScanning.getClient()
+    private val faceDetector = FaceDetection.getClient(
+        FaceDetectorOptions.Builder()
+            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+            .build()
+    )
+    private lateinit var faceNetInterpreter: Interpreter
+    private var lastTimeDetectarFace: Long = 0
+    private var lastTimeQRDetected: Long = 0
+
     private var lensFacingSeleccionado = CameraSelector.LENS_FACING_FRONT // ◄ Inicia en Frontal por defecto
     private val solicitarPermisoCamaraLanzador = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -96,6 +116,11 @@ class IngresoPeatonalActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         cameraExecutor = Executors.newSingleThreadExecutor()
+        try {
+            faceNetInterpreter = Interpreter(loadModelFile("facenet_512.tflite"))
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
 
         configurarAccionesGlobales()
 
@@ -212,6 +237,12 @@ class IngresoPeatonalActivity : AppCompatActivity() {
                 binding.lblSubtitulosAsistente.text = state.subtitulosAsistente
                 binding.lblHistorialDatos?.text = datosAcumulados.toString()
                 binding.lblHistorialDatos?.visibility = if (datosAcumulados.length > 8) View.VISIBLE else View.GONE
+                if (state.currentFaceEmbedding !=null && state.currentFaceEmbedding.isNotEmpty()) {
+                    binding.ivFacePreview.visibility = View.VISIBLE
+                    binding.ivFacePreview.setImageBitmap(state.currenFaceBitmap)
+                }else{
+                    binding.ivFacePreview.visibility = View.GONE
+                }
 
 
                 // 🛑 CORRECCIÓN ANR CRÍTICA: Solo regenerar los Chips si el paso cambió físicamente
@@ -223,7 +254,7 @@ class IngresoPeatonalActivity : AppCompatActivity() {
                     when (state.currentStep) {
                         CaptureStep.SELECCION_MOTIVO -> {
                             controlarEstadoMicrofono(habilitar = true)
-                            binding.lblInstruccionSeccion.text = "1. Indique el Motivo de Entrada:"
+                            binding.lblInstruccionSeccion.text = "1. Indique el Motivo de Ingreso:"
                             binding.ScrollViewGridBotones.visibility = View.VISIBLE
                             binding.txtInputManual.visibility = View.GONE
                             binding.btnSiguientePasoManual.visibility = View.GONE
@@ -333,6 +364,16 @@ class IngresoPeatonalActivity : AppCompatActivity() {
                             binding.txtInputManual.hint = "Escriba la placa aquí..."
                             binding.btnSiguientePasoManual.visibility = View.VISIBLE
                             binding.btnSiguientePasoManual.text = "Solicitar Autorización 🔐"
+                        }
+
+                        CaptureStep.CAPTURA_ROSTRO -> {
+                            ocultarTecladoVirtual()
+                            controlarEstadoMicrofono(habilitar = false)
+                            binding.lblInstruccionSeccion.text = "5. Capturar Rostro:"
+                            binding.ScrollViewGridBotones.visibility = View.GONE
+                            binding.txtInputManual.visibility = View.GONE
+                            binding.btnSiguientePasoManual.visibility = View.GONE
+                            binding.btnSiguientePasoManual.text = "nunca debe ver esto"
                         }
 
                         CaptureStep.PROCESANDO_AUTORIZACION -> {
@@ -753,7 +794,7 @@ class IngresoPeatonalActivity : AppCompatActivity() {
     }
 
 
-    // --- QR
+    // --- QR y ROSTRO
     private fun configurarEIniciarCameraXFrontal() {
         // 1. Obtener el proveedor de la cámara de forma explícita en el hilo principal
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
@@ -779,6 +820,24 @@ class IngresoPeatonalActivity : AppCompatActivity() {
     }
     private fun conectarCasosDeUsoDeCamaraX() {
         val provider = cameraProvider ?: return
+
+        ///CODIGI PARA LOS ROSTROS
+//        val imageAnalysis = ImageAnalysis.Builder()
+//            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+//            .build()
+//
+//// Inicializar el intérprete cargando tu archivo mobile_facenet.tflite desde assets
+//        val faceNetInterpreter = Interpreter(loadModelFileFromAssets("facenet.tflite"))
+//
+//        imageAnalysis.setAnalyzer(cameraExecutor, MultiTaskImageAnalyzer(faceNetInterpreter))
+//
+//// Enlazar al ciclo de vida junto con tu Preview
+//        cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis)
+
+        ///////////////////////////////////////////////
+
+
+
 
         // 🚀 MEJORA 1: Forzar al Preview a usar una estrategia de escalado compatible con GPU de emuladores y físicos
         val previewUseCase = Preview.Builder()
@@ -838,31 +897,149 @@ class IngresoPeatonalActivity : AppCompatActivity() {
             // Envolver la textura de Android en un objeto compatible con el SDK de Google
             val inputImage = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
 
+            //Escanear QRs
             qrScannerClient.process(inputImage)
                 .addOnSuccessListener { barcodes ->
-                    // Si se localiza un código de barras o QR en la matriz
-                    val qrDetectado = barcodes.firstOrNull()
-                    val textoPlanoQr = qrDetectado?.rawValue
+                    if (System.currentTimeMillis() - lastTimeQRDetected > 2000) {
+                        // Si se localiza un código de barras o QR en la matriz
+                        lastTimeQRDetected = System.currentTimeMillis()
+                        val qrDetectado = barcodes.firstOrNull()
+                        val textoPlanoQr = qrDetectado?.rawValue
 
-                    if (textoPlanoQr != null) {
-                        binding.qrGuideFrame.setBackgroundResource(R.drawable.qr_frame_border_detected)
-                        // Regresar al hilo principal para inyectar la validación del prefijo "ginn"
-                        lifecycleScope.launch(Dispatchers.Main) {
-                            viewModel.procesarContenidoQrDetectado(textoPlanoQr)
-                            binding.qrGuideFrame.setBackgroundResource(R.drawable.qr_frame_border)
+                        if (textoPlanoQr != null) {
+                            binding.qrGuideFrame.setBackgroundResource(R.drawable.qr_frame_border_detected)
+                            // Regresar al hilo principal para inyectar la validación del prefijo "ginn"
+                            lifecycleScope.launch(Dispatchers.Main) {
+                                delay(500)
+                                binding.qrGuideFrame.setBackgroundResource(R.drawable.qr_frame_border)
+                                viewModel.procesarContenidoQrDetectado(textoPlanoQr)
+                            }
                         }
                     }
                 }
                 .addOnFailureListener {
                     // Ignorar fallas menores de lectura por movimiento o desenfoque
-                }
-                .addOnCompleteListener {
-                    // ⚠️ OBLIGATORIO: Liberar el frame para indicarle a CameraX que puede enviar el siguiente cuadro
                     imageProxy.close()
                 }
+                .addOnCompleteListener {
+                    //Escanear Rostro
+                    if (System.currentTimeMillis() - lastTimeDetectarFace > 2000) {
+                        faceDetector.process(inputImage)
+                            .addOnSuccessListener { faces ->
+                                lastTimeDetectarFace = System.currentTimeMillis()
+                                val mainFace =
+                                    faces.maxByOrNull { face -> face.boundingBox.width() * face.boundingBox.height() }
+                                if (mainFace == null) return@addOnSuccessListener
+
+                                val sourceBitmap =
+                                    imageProxy.toBitmap() ?: return@addOnSuccessListener
+                                val rotationDegress = imageProxy.imageInfo.rotationDegrees
+
+                                val faceBitmap = cropAndRotateFace(
+                                    sourceBitmap,
+                                    mainFace.boundingBox,
+                                    rotationDegress
+                                )
+                                if (faceBitmap != null) {
+                                    // Generar el código matemático (Embedding)
+                                    val faceEmbedding = extractFaceEmbedding(faceBitmap)
+                                    val similitudFromCurrent = if (viewModel.uiState.value.currentFaceEmbedding==null) 0.0f else faceEmbedding.euclideanDistance(viewModel.uiState.value.currentFaceEmbedding!!)
+                                    Log.d(
+                                        "ValidacionRostro",
+                                        "SE ENCONTRO ROSTRO: ${mainFace.boundingBox} similitud con Anterior: $similitudFromCurrent"
+                                    )
+                                    if (viewModel.uiState.value.currentFaceEmbedding == null || similitudFromCurrent < 1.0f)
+                                        // Guardar faceEmbedding (FloatArray)
+                                        viewModel.registrarRostro(faceBitmap, faceEmbedding)
+                                }
+                                imageProxy.close()
+                            }
+                            .addOnFailureListener {
+                                imageProxy.close()
+                            }
+                            .addOnCompleteListener {
+                                // ⚠️ OBLIGATORIO: Liberar el frame para indicarle a CameraX que puede enviar el siguiente cuadro
+                                imageProxy.close()
+                            }
+                    }else{
+                        imageProxy.close()
+                    }
+                }
+
+
+
         } else {
             imageProxy.close()
         }
+    }
+    fun cropAndRotateFace(source: Bitmap, bounds: Rect, rotationDegrees: Int): Bitmap? {
+        try {
+            // Asegurar que el cuadro delimitador esté estrictamente dentro de los límites del Bitmap
+            val left = bounds.left.coerceIn(0, source.width)
+            val top = bounds.top.coerceIn(0, source.height)
+            val width = bounds.width().coerceIn(0, source.width - left)
+            val height = bounds.height().coerceIn(0, source.height - top)
+
+            // Validar que el área de recorte sea válida
+            if (width <= 0 || height <= 0) return null
+
+            // Si la imagen requiere rotación, configuramos la matriz
+            val matrix = Matrix()
+            if (rotationDegrees != 0) {
+                matrix.postRotate(rotationDegrees.toFloat())
+            }
+
+            // Corta y rota en una sola operación eficiente de memoria
+            return Bitmap.createBitmap(source, left, top, width, height, matrix, true)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return null
+        }
+    }
+    private fun convertBitmapToByteBuffer(bitmap: android.graphics.Bitmap): ByteBuffer {
+        // 160 x 160 píxeles x 3 canales (RGB) x 4 bytes (Float tamaño)
+        val inputSize = 160
+        val byteBuffer = ByteBuffer.allocateDirect(1 * inputSize * inputSize * 3 * 4)
+        byteBuffer.order(ByteOrder.nativeOrder())
+
+        val intValues = IntArray(inputSize * inputSize)
+        bitmap.getPixels(intValues, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+
+        // Recorrer los píxeles y extraer canales R, G, B
+        for (pixelValue in intValues) {
+            val r = (pixelValue shr 16 and 0xFF)
+            val g = (pixelValue shr 8 and 0xFF)
+            val b = (pixelValue and 0xFF)
+
+            // Normalización estándar (0 a 1).
+            // Si tu modelo pide rango (-1 a 1), usa: (r - 127.5f) / 127.5f
+            byteBuffer.putFloat(r / 255.0f)
+            byteBuffer.putFloat(g / 255.0f)
+            byteBuffer.putFloat(b / 255.0f)
+        }
+        return byteBuffer
+    }
+    private fun loadModelFile(modelName: String): ByteBuffer {
+        // Función auxiliar para cargar el archivo .tflite de la carpeta Assets
+        val fileDescriptor = assets.openFd(modelName)
+        val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
+        val fileChannel = inputStream.channel
+        val startOffset = fileDescriptor.startOffset
+        val declaredLength = fileDescriptor.declaredLength
+        return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
+    }
+    private fun extractFaceEmbedding(faceBitmap: android.graphics.Bitmap): FloatArray {
+        // Redimensionar el bitmap al tamaño que requiera tu modelo FaceNet (ej. 160x160 o 112x112)
+        val resizedBitmap = android.graphics.Bitmap.createScaledBitmap(faceBitmap, 160, 160, true)
+        val inputBuffer = convertBitmapToByteBuffer(resizedBitmap)
+
+        // El output del modelo suele ser un arreglo de 1 fila por 512 columnas (características)
+        val outputArray = Array(1) { FloatArray(512) }
+
+        // Ejecución de la inferencia en TensorFlow Lite
+        faceNetInterpreter.run(inputBuffer, outputArray)
+
+        return outputArray[0] // Este es el "código matemático" único del rostro
     }
 
 

@@ -29,7 +29,8 @@
             android:exported="false" />
         <activity
             android:name=".peatonal.IngresoPeatonalActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/Theme.MaterialComponents.NoActionBar"/>
         <activity
             android:name=".caseta.CasetaCentralActivity"
             android:exported="false" />

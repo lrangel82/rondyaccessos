@@ -85,7 +85,7 @@ class IngresoPeatonalViewModel(
 
     private fun cargarConfiguracionesIniciales() {
         //listadoMotivosPredefinidos = listOf("Visitante", "Uber/Taxi", "Residente sin tag", "Paqueteria", "Gas", "ComidaADomicilio", "Policia", "Camion Basura", "Grua", "Ambulancia")
-        listadoMotivosPredefinidos = dataRaw.getTiposAccesos()
+        listadoMotivosPredefinidos = dataRaw.getTiposAccesos().filter { it.esPeatonal }
         todosLosDomiciliosCache = dataRaw.getDomiciliosUbicacion()
     }
 
@@ -104,6 +104,7 @@ class IngresoPeatonalViewModel(
             IngresoPeatonalUiState(
                 currentStep = CaptureStep.SELECCION_MOTIVO,
                 lblTopMensaje = "Asistente iniciado. Seleccione motivo.",
+                subtitulosAsistente = "Indiqueme el motivo de su ingreso, porfavor.",
                 segundosRestantes = TIMEOUT_RESET_ESTANDAR,
                 mencionarBienvenida = porExito, // Solo mencionar si viene de un éxito
             )
@@ -536,9 +537,9 @@ class IngresoPeatonalViewModel(
                 lblTopMensaje = "Valide la placa tecleada o leída por la cámara:"
             )
         }
-        //evaluaDatosMaquinaDeEstados()
+        evaluaDatosMaquinaDeEstados()
         //controlarCicloDeVidaDeStreaming()
-        validarMotivoYSolicitarAutorizacion()
+        //validarMotivoYSolicitarAutorizacion()
     }
 
     fun registrarDireccionPaqueteriaActualYPreguntar(calle: String, numero: String) {
@@ -553,6 +554,100 @@ class IngresoPeatonalViewModel(
             )
         }
         geminiVoiceAssistant.forzarLocucionPorAltavoz("¿Viene a otra dirección?")
+    }
+
+    fun registrarRostro(faceBitmap: Bitmap, embedding: FloatArray) {
+        val istheFirstTime = _uiState.value.currentFaceEmbedding == null || _uiState.value.currentFaceEmbedding!!.isEmpty()
+        _uiState.update {
+            it.copy(
+                currenFaceBitmap = faceBitmap,
+                currentFaceEmbedding = embedding,
+                qrData = embedding.toJsonString()
+            )
+        }
+        //Hay que procesar para buscar si este rostro ya habia ingresado anteriormente y si fue aprobado
+        //debemos suponer que fue aprobado por el dia de hoy asi que dar acceso directo es correcto
+        //y solo avisar que ingresa al mismo domicilio
+        if (_uiState.value.currentStep == CaptureStep.SELECCION_MOTIVO)
+            viewModelScope.launch(Dispatchers.Default) {
+                // 3. CONSULTA: Buscar el ROSTRO en la capa de persistencia local indexada
+                val registroPeatonalLast24hr: List<List<Any>> = dataRaw.getBitacoraPeatonalAccesos24Hrs()
+
+                // 4. FILTRO: Verificar existencia en base de datos (Requiere mínimo 10 columnas indexadas)
+                if (registroPeatonalLast24hr.isEmpty() ) {
+                    //No hay registros en la base de datos
+                    return@launch
+                }
+
+                //Buscar si hay concidencia
+                run loop@{
+                    registroPeatonalLast24hr.forEach { row ->
+                        if (row.size < 10) return@loop
+                        val _embeddingStoredData = row[10].toString().toFloatArray() //qr_Data
+                        val similitud =_embeddingStoredData.euclideanDistance(embedding)
+                        Log.d("ValidacionRostro","similitud rostro vs DB(${row[1]}:${row[2]}:${row[3]}): $similitud")
+                        if (  similitud > 1.0f ) {
+                            //Concidencia DE ROSTRO!!!!
+                            Log.d("ValidacionRostro","Rostro encontrado con SIMILITUD: $similitud")
+
+                            // Mapeo posicional estricto del registro según tu layout:
+                            val calle24h          = row[3].toString()
+                            val numero24h         = row[4].toString()
+                            val tipo24h           = row[5].toString()
+                            val nombreInvitado24h = row[6].toString()
+                            val status24h         = row[12].toString()
+
+                            Log.d("ValidacionRostro","status24h:${status24h} calle24h: ${calle24h}:${numero24h} ${tipo24h} ${nombreInvitado24h}")
+
+                            //Es denegado nos salimos y que haga registro nuevo
+                            if (status24h.esDenegado() == true) return@loop
+
+                            // CIERRE DE ACCESO (Si pasa todos los filtros de seguridad)
+                            if (!flujoResuelto.compareAndSet(false, true)) return@launch
+                            timerInactividadJob?.cancel()
+
+                            // Re-inyectamos los datos estructurados del QR directo al UI State para la transacción
+                            _uiState.update { current ->
+                                current.copy(
+                                    calleInput = calle24h,
+                                    numeroInput = numero24h,
+                                    conductorInput = nombreInvitado24h,
+                                    tipoInput = tipo24h,
+                                    //qrData = ya esta cargado anteriormente,
+                                    descripcionInput = "Acceso validado ROSTRO ultimas 24hrs [$calle24h:$numero24h]",
+                                    status = "AUTORIZADO"
+                                )
+                            }
+
+                            // 9. PERSISTENCIA: Ejecución del guardado transaccional final unificado
+                            withContext(Dispatchers.Main) {
+                                // 🟢 POP-UP VERDE: Acceso Autorizado con Destino Explicitado
+                                _whatsappStatus.value = WhatsappAuthStatus.Autorizado
+                                _uiState.update { it.copy(lblTopMensaje = "ACCESO AUTORIZADO - BIENVENIDO") }
+
+                                geminiVoiceAssistant.forzarLocucionPorAltavoz("Bienvenido de nuevo ${nombreInvitado24h}.")
+                                delay(3000)
+
+                                // Disparamos la lógica de almacenamiento e imágenes
+                                ejecutarGuardadoTransaccionalFinal(_uiState.value)
+
+
+                                // Mantiene el banner verde de éxito en la pantalla física del guardia por 4 segundos antes de liberar la fila
+                                delay(4000)
+                                reiniciarAsistentePeatonal()
+                                qrCooldownActivo = false
+                            }
+
+                            return@loop
+                        }
+                    }
+                } // Fin de Loop de busqueda de rostros!!!
+
+
+            }
+
+        if (istheFirstTime == true)
+            evaluaDatosMaquinaDeEstados()
     }
 
     fun responderPreguntaOtraDireccion(quiereOtra: Boolean) {
@@ -666,6 +761,11 @@ class IngresoPeatonalViewModel(
             estadoActual.conductorInput.isEmpty() -> {
                 geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme su nombre.")
                 _uiState.update { it.copy(currentStep = CaptureStep.CAPTURA_NOMBRE) }
+            }
+
+            estadoActual.currentFaceEmbedding== null || estadoActual.currentFaceEmbedding.isEmpty() -> {
+                geminiVoiceAssistant.forzarLocucionPorAltavoz("Porfavor mire a la camara para registrar su rostro.")
+                _uiState.update { it.copy(currentStep = CaptureStep.CAPTURA_ROSTRO) }
             }
 
 
@@ -1757,7 +1857,7 @@ class IngresoPeatonalViewModel(
                 _uiState.update { it.copy(lblTopMensaje = "Procesando registro...") }
                 // 1. Safe extraction from the Application dynamic callback link
                 val app = getApplication<RondyApplication>()
-                val bitmapPlacaLive: Bitmap? = app.imagenesCallBackActivo?.invoke("PLACA")
+                //val bitmapPlacaLive: Bitmap? = app.imagenesCallBackActivo?.invoke("PLACA")
                 val bitmapRostroLive: Bitmap? = app.imagenesCallBackActivo?.invoke("ROSTRO")
 
 
@@ -1765,10 +1865,7 @@ class IngresoPeatonalViewModel(
                 val fechaActualStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
                 val horaActualStr = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
                 val timestampCombinado = "$fechaActualStr $horaActualStr"
-                val posiblesDenegados: List<String> = listOf("NO","MOROSO","NIEGA ACCESO","DENEGADO")
-                val esDenegado = posiblesDenegados.any { palabra ->
-                    state.status.contains(palabra, ignoreCase = true)
-                }
+                val esDenegado = state.status.esDenegado()
                 val esAutorizado = !esDenegado
 
                 _uiState.update { it.copy(lblTopMensaje = "Almacenando evidencias...") }
@@ -1784,7 +1881,7 @@ class IngresoPeatonalViewModel(
                     )
 
                     // Feature 5: Update previous open records lacking 'fechaSalida'
-                    dataRaw.actulizarSalidaAccesosPeatonal(state.conductorInput, timestampCombinado)
+                    dataRaw.actulizarSalidaAccesosPeatonal(state.conductorInput, state.calleInput,state.numeroInput, timestampCombinado)
 
                     urlRostro
                 }

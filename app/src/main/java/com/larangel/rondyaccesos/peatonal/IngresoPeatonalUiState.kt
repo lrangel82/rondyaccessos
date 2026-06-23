@@ -1,5 +1,6 @@
 package com.larangel.rondyaccesos.peatonal
 
+import android.graphics.Bitmap
 import com.larangel.rondyaccesos.models.CaptureStep
 import com.larangel.rondyaccesos.models.TipoAccesos
 import com.larangel.rondyaccesos.models.network.WhatsappAuthStatus
@@ -15,6 +16,8 @@ data class IngresoPeatonalUiState(
     val conductorInput: String = "",
     val descripcionInput: String = "",
     val status: String = "",
+    val currenFaceBitmap: Bitmap? = null,
+    val currentFaceEmbedding: FloatArray? = null,
     val extencionesTxt: String = "",
     val deudorBloqueo: Boolean = false,
     val mostrarDialogoPaqueteria: Boolean = false,

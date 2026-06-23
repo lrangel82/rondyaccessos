@@ -98,6 +98,15 @@
                 android:layout_gravity="center"
                 android:background="@drawable/qr_frame_border_modern" />
 
+            <ImageView
+                android:id="@+id/ivFacePreview"
+                android:layout_width="70dp"
+                android:layout_height="70dp"
+                android:layout_gravity="bottom|left"
+                android:layout_margin="5dp"
+                android:contentDescription="Vista previa del rostro"
+                android:scaleType="centerCrop" />
+
             <!-- BOTÓN SWITCH CÁMARA QR -->
             <ImageButton
                 android:id="@+id/btnSwitchCamera"

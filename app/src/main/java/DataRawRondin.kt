@@ -1458,6 +1458,11 @@ class DataRawRondin(
         }
         return result as List<Any>
     }
+    fun getBitacoraPeatonalAccesos24Hrs(): List<List<Any>>{
+        val rows = getBitacoraAccesos()
+        val date24HoursAgo = LocalDateTime.now().minusHours(24)
+        return rows.filter {it[2].toString() == "PEATONAL" && parseLenientDateTime(it[1].toString()) >= date24HoursAgo }
+    }
     fun actulizarSalidaAccesos(placaTarget:String, fechaSalidaNueva: String): Boolean {
         if (placaTarget.isBlank()) return false
 
@@ -1505,8 +1510,54 @@ class DataRawRondin(
         return true
 
     }
-    fun actulizarSalidaAccesosPeatonal(conductor:String, fechaSalidaNueva: String): Boolean{
-        return false
+    fun actulizarSalidaAccesosPeatonal(conductor:String, calle: String, numero: String, fechaSalidaNueva: String): Boolean{
+        if (conductor.isBlank() || calle.isBlank() || numero.isBlank() ) return false
+
+        val table = SheetTable.BITACORA_ACCESOS
+        val state = tableStates[table] ?: return false
+
+        try {
+            // 1. Aseguramos que la RAM tenga datos (Carga desde RAM -> Disco -> Red)
+            if (state.cache == null) runBlocking { getBitacoraAccesos() }
+
+            val currentCache = state.cache?.toMutableList() ?: mutableListOf()
+            var indexFind = -1
+
+            // 2. Búsqueda por ID
+            var rowData: MutableList<Any> = mutableListOf()
+            currentCache.forEachIndexed { index, bitacora ->
+                if (bitacora.size >= 4 &&
+                    bitacora[2].toString() == "PEATONAL" &&
+                    bitacora[6].toString() == conductor &&
+                    bitacora[3].toString() == calle &&
+                    bitacora[4].toString() == numero &&
+                    bitacora[11].toString().isEmpty()
+                ) {
+                    indexFind = index
+                    rowData = bitacora.toMutableList()
+                    return@forEachIndexed
+                }
+            }
+
+            //Vencer
+            if (indexFind >= 0) {
+                rowData[11] = fechaSalidaNueva
+                rowData[12] = "salida CORREGIDA POR APP"
+                currentCache[indexFind] = rowData
+                state.cache = currentCache
+
+                // Persistir en disco para acceso offline inmediato
+                mySettings.saveList("${table.cacheKey}_CACHE", currentCache as List<List<String>>)
+                mySettings.saveLong(table.timestampKey, System.currentTimeMillis())
+
+                // Sincronizar Update (index + 2 por el encabezado de Google Sheets)
+                sync(table, Operation.UPDATE, data = rowData as List<String>, index = indexFind + 2)
+            }
+        }catch (e: Exception) {
+            Log.e("DataRawRondin", "Excepcion critica durante el cierre automatico de reentradas por Nombre PEATONAL.", e)
+            return false
+        }
+        return true
     }
 
     //Whatsapp Telefonos

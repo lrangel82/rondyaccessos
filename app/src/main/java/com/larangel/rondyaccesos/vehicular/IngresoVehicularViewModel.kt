@@ -99,7 +99,7 @@ class IngresoVehicularViewModel(
     private fun cargarConfiguracionesIniciales() {
 
         //listadoMotivosPredefinidos = listOf("Visitante", "Uber/Taxi", "Residente sin tag", "Paqueteria", "Gas", "ComidaADomicilio", "Policia", "Camion Basura", "Grua", "Ambulancia")
-        listadoMotivosPredefinidos = dataRaw.getTiposAccesos()
+        listadoMotivosPredefinidos = dataRaw.getTiposAccesos().filter { it.esVehicular }
         todosLosDomiciliosCache = dataRaw.getDomiciliosUbicacion()
         val urlGuardadaEnCache = mySettings.getString("URL_CAMARA_PLACAS_PREFERIDA", "")
         if (urlGuardadaEnCache.isNotEmpty()) {

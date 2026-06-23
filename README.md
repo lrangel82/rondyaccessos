@@ -80,3 +80,61 @@ Instrucción para la IA: "Al diseñar o refactorizar cualquier layout de Rondy A
 
 # Promt para generar dialogos para la animacion
 Podrias generar un prompt de un dialogo y de una secuencia de animacion de un clip corto que permita promocionar los aspectos mas imporntates de la aplicacion Rondy.
+* Tu seguridad no registra o deja ingresar a sus conocidos
+* Tienes carros que no tienen registro
+* Se quedan dormidos tus elementos de seguridad
+* Ingresan a los domicilios sin avisar a los residentes
+* No hay un control real de quien entra y sale de lugar mas importante y donde debe estar mas seguro, tu casa?
+
+Entonces necesitas cambiar a Rondy, la automatizacion del ingreso de tu condominio realmente automatizado, sin los huecos de seguridad de las personas.
+* accesos qr
+* permisos de trabajadores
+* automatizado por IA
+* Residentes seran los unicos en autorizar accesos a sus domicilios
+* autorizacion por whatsapp
+* autorizacion por llamada telefonica automatizada
+* Excepciones por si esta de vacaciones denegar cualquier ingreso
+* Sin infraestructura costosa
+
+
+Guion de Animación: Rondy App
+FICHA TÉCNICA
+•	Duración estimada: 45 - 60 segundos.
+•	Estilo visual: Animación 2D dinámica, colores corporativos amigables pero profesionales.
+•	Personajes:
+o	Residente: Un personaje con el que la audiencia se identifique (expresivo, preocupado/aliviado).
+o	Guardia de seguridad: Caricaturizado, un poco descuidado (para enfatizar los fallos humanos).
+o	Voz en Off (Locutor): Tono amigable, empático al inicio y tecnológico/seguro al final.
+
+ESCENA 1: La frustración del control manual
+•	Visual: Plano medio de un carro llegando a la caseta de un condominio. El guardia está dormido sobre el escritorio con una taza de café vacía al lado. El conductor del carro toca la bocina. El guardia se despierta sobresaltado, busca una libreta vieja, no la encuentra y le da acceso al carro levantando la pluma manualmente sin revisar nada.
+•	Texto en pantalla: ¿Seguridad o papeleo obsoleto?
+•	Voz en Off (Locutor): ¿Sientes que el control de acceso de tu condominio tiene demasiados huecos? Guardias que se quedan dormidos... carros que ingresan sin ningún registro...
+ESCENA 2: La pérdida de control
+•	Visual: Transición rápida (corte). El mismo guardia está anotando algo en su libreta sin mirar. Por el lado de la caseta, camina una persona desconocida (un repartidor o extraño) directo hacia las casas. En la siguiente toma, vemos al Residente dentro de su casa, mirando por la ventana con cara de susto e indignación porque alguien camina por su jardín sin previo aviso.
+•	Texto en pantalla: Ingresos sin aviso.
+•	Voz en Off (Locutor): Desconocidos que entran a las áreas comunes e incluso a tu domicilio sin que tú, como residente, recibas un solo aviso. Si tu familia no está segura en su propio hogar... ¿dónde lo estará?
+ESCENA 3: La transición tecnológica
+•	Visual: El fondo oscuro y caótico de las escenas anteriores se limpia con un efecto de "barrido" tecnológico brillante. Aparece el logotipo de Rondy en el centro. La pantalla se divide en un teléfono inteligente moderno mostrando la interfaz limpia de la aplicación.
+•	Texto en pantalla: Rondy: Automatización Real.
+•	Voz en Off (Locutor): Es momento de cambiar a Rondy. La automatización total del ingreso de tu condominio, eliminando por completo los errores del factor humano.
+ESCENA 4: Características clave (Secuencia rápida)
+•	Visual: La pantalla se divide en cuatro cuadrantes dinámicos que muestran las funciones en acción:
+1.	Arriba Izquierda: Un visitante escanea un código QR en un tótem digital y la pluma se abre sola (Accesos QR).
+2.	Arriba Derecha: El residente presiona un botón en su celular que dice "Modo Vacaciones" y aparece un candado digital sobre su casa (Modo Vacaciones).
+3.	Abajo Izquierda: Un teléfono recibe una notificación de WhatsApp con botones de "Aceptar" o "Denegar" ingreso (Autorización por WhatsApp).
+4.	Abajo Derecha: Un cerebro digital brillante flotando sobre la caseta vacía y limpia (Automatizado por IA).
+      •	Texto en pantalla (Aparece en cada cuadrante):
+      o	Accesos QR y Permisos de trabajadores.
+      o	Control por WhatsApp y Llamada Inteligente.
+      o	Excepciones por Vacaciones.
+      o	Inteligencia Artificial.
+      •	Voz en Off (Locutor): Con Rondy, tú tienes el control absoluto: generas accesos QR temporales, gestionas permisos de trabajadores, autorizas ingresos desde WhatsApp o mediante llamadas automáticas, y activas el modo vacaciones para bloquear cualquier acceso sospechoso. ¡Todo impulsado por Inteligencia Artificial!
+      ESCENA 5: El beneficio final y cierre
+      •	Visual: Plano general del condominio, ahora moderno y protegido por un escudo digital sutil. El Residente del inicio sonríe desde su sala, relajado con su familia. Volvemos a la caseta de entrada: no hay computadoras costosas ni cableados pesados, solo un tótem inteligente minimalista. El logotipo de Rondy se despliega en grande con un botón que dice "Descarga la App".
+      •	Texto en pantalla:
+      o	Los residentes autorizan.
+      o	Sin infraestructura costosa.
+      o	¡Descarga Rondy hoy!
+      •	Voz en Off (Locutor): Los residentes son los únicos que autorizan quién entra. Seguridad avanzada, sin necesidad de infraestructura costosa. Protege lo que más importa. Cambia a Rondy.
+
