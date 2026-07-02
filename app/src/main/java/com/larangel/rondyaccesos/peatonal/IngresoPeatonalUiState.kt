@@ -16,7 +16,7 @@ data class IngresoPeatonalUiState(
     val conductorInput: String = "",
     val descripcionInput: String = "",
     val status: String = "",
-    val currenFaceBitmap: Bitmap? = null,
+    val currentFaceBitmap: Bitmap? = null,
     val currentFaceEmbedding: FloatArray? = null,
     val extencionesTxt: String = "",
     val deudorBloqueo: Boolean = false,

@@ -556,11 +556,21 @@ class IngresoPeatonalViewModel(
         geminiVoiceAssistant.forzarLocucionPorAltavoz("¿Viene a otra dirección?")
     }
 
+    fun cleanRostro(){
+        if (_uiState.value.currentStep == CaptureStep.SELECCION_MOTIVO)
+            _uiState.update {
+                it.copy(
+                    currentFaceBitmap = null,
+                    currentFaceEmbedding = null,
+                    qrData = ""
+                )
+            }
+    }
     fun registrarRostro(faceBitmap: Bitmap, embedding: FloatArray) {
         val istheFirstTime = _uiState.value.currentFaceEmbedding == null || _uiState.value.currentFaceEmbedding!!.isEmpty()
         _uiState.update {
             it.copy(
-                currenFaceBitmap = faceBitmap,
+                currentFaceBitmap = faceBitmap,
                 currentFaceEmbedding = embedding,
                 qrData = embedding.toJsonString()
             )
@@ -586,7 +596,8 @@ class IngresoPeatonalViewModel(
                         val _embeddingStoredData = row[10].toString().toFloatArray() //qr_Data
                         val similitud =_embeddingStoredData.euclideanDistance(embedding)
                         Log.d("ValidacionRostro","similitud rostro vs DB(${row[1]}:${row[2]}:${row[3]}): $similitud")
-                        if (  similitud > 1.0f ) {
+                        //Distancia ecuclidiana cercanas a 0 son el mismo rostro, mayores es un rostro distinto
+                        if (  similitud <= 0.7f ) {
                             //Concidencia DE ROSTRO!!!!
                             Log.d("ValidacionRostro","Rostro encontrado con SIMILITUD: $similitud")
 
@@ -1406,9 +1417,9 @@ class IngresoPeatonalViewModel(
                                 ejecutarSondeoWhatsApp(state, telefonosArray)
                             }
 
-                            // SUB-HILO 3: ESPECIFICACIÓN: Esperar 30 segundos pasivos antes de respaldar con IVR
+                            // SUB-HILO 3: ESPECIFICACIÓN: Esperar 15 segundos pasivos antes de respaldar con IVR
                             launch {
-                                delay(30_000L)
+                                delay(15_000L)
                                 lanzarFlujoIVRSeguro(state)
                             }
                         }
@@ -1436,7 +1447,7 @@ class IngresoPeatonalViewModel(
                     val telefono = row[2].toString()
                     val requestPayload = ValidarVisitaRequest(
                         telefono = telefono, calle = state.calleInput, numero = state.numeroInput,
-                        placas = "", nombre = state.conductorInput, tiporegistro = state.tipoInput
+                        placas = "PEATONAL", nombre = state.conductorInput, tiporegistro = state.tipoInput
                     )
 
                     try {

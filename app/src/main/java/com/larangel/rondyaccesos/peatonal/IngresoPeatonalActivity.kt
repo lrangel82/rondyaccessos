@@ -31,6 +31,8 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
+//import androidx.compose.ui.test.left
+//import androidx.compose.ui.test.right
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.toColorInt
@@ -238,8 +240,10 @@ class IngresoPeatonalActivity : AppCompatActivity() {
                 binding.lblHistorialDatos?.text = datosAcumulados.toString()
                 binding.lblHistorialDatos?.visibility = if (datosAcumulados.length > 8) View.VISIBLE else View.GONE
                 if (state.currentFaceEmbedding !=null && state.currentFaceEmbedding.isNotEmpty()) {
-                    binding.ivFacePreview.visibility = View.VISIBLE
-                    binding.ivFacePreview.setImageBitmap(state.currenFaceBitmap)
+                    state.currentFaceBitmap?.let { bitmap ->
+                        binding.ivFacePreview.setImageBitmap(bitmap)
+                        binding.ivFacePreview.visibility = View.VISIBLE
+                    }
                 }else{
                     binding.ivFacePreview.visibility = View.GONE
                 }
@@ -929,11 +933,14 @@ class IngresoPeatonalActivity : AppCompatActivity() {
                                 lastTimeDetectarFace = System.currentTimeMillis()
                                 val mainFace =
                                     faces.maxByOrNull { face -> face.boundingBox.width() * face.boundingBox.height() }
-                                if (mainFace == null) return@addOnSuccessListener
+                                if (mainFace == null) {
+                                    viewModel.cleanRostro()
+                                    return@addOnSuccessListener
+                                }
 
                                 val sourceBitmap =
                                     imageProxy.toBitmap() ?: return@addOnSuccessListener
-                                val rotationDegress = imageProxy.imageInfo.rotationDegrees
+                                val rotationDegress = imageProxy.imageInfo.rotationDegrees.toFloat()//180.0f //mainFace.headEulerAngleY
 
                                 val faceBitmap = cropAndRotateFace(
                                     sourceBitmap,
@@ -948,7 +955,8 @@ class IngresoPeatonalActivity : AppCompatActivity() {
                                         "ValidacionRostro",
                                         "SE ENCONTRO ROSTRO: ${mainFace.boundingBox} similitud con Anterior: $similitudFromCurrent"
                                     )
-                                    if (viewModel.uiState.value.currentFaceEmbedding == null || similitudFromCurrent < 1.0f)
+                                    //Distancia ecuclidiana cercanas a 0 son el mismo rostro, mayores es un rostro distinto
+                                    if (viewModel.uiState.value.currentFaceEmbedding == null || similitudFromCurrent > 1.5f)
                                         // Guardar faceEmbedding (FloatArray)
                                         viewModel.registrarRostro(faceBitmap, faceEmbedding)
                                 }
@@ -972,25 +980,48 @@ class IngresoPeatonalActivity : AppCompatActivity() {
             imageProxy.close()
         }
     }
-    fun cropAndRotateFace(source: Bitmap, bounds: Rect, rotationDegrees: Int): Bitmap? {
+    fun cropAndRotateFace(source: Bitmap, bounds: Rect, rotationDegrees: Float): Bitmap? {
         try {
-            // Asegurar que el cuadro delimitador esté estrictamente dentro de los límites del Bitmap
-            val left = bounds.left.coerceIn(0, source.width)
-            val top = bounds.top.coerceIn(0, source.height)
-            val width = bounds.width().coerceIn(0, source.width - left)
-            val height = bounds.height().coerceIn(0, source.height - top)
+            // 2. CORRECCIÓN CRÍTICA: Si es frontal, invertimos el eje X
+            // Añadir un margen del 10% para asegurar que se incluya todo el rostro
+            val padding = (bounds.width() * 0.15f).toInt()
+            var rectCrop: Rect
+            if (lensFacingSeleccionado == CameraSelector.LENS_FACING_FRONT){
+                // En la cámara frontal, el 'left' del detector es el 'right' en el bitmap espejeado
+                val nuevoLeft = source.width - bounds.right
+                val nuevoRight = source.width - bounds.left
+                rectCrop = Rect(
+                    maxOf(0, nuevoLeft - padding),
+                    maxOf(0, bounds.top - padding),
+                    minOf(source.width, nuevoRight + padding),
+                    minOf(source.height, bounds.bottom + padding)
+                )
+            }else {
+                 rectCrop = Rect(
+                    maxOf(0, bounds.left - padding),
+                    maxOf(0, bounds.top - padding),
+                    minOf(source.width, bounds.right + padding),
+                    minOf(source.height, bounds.bottom + padding)
+                )
+            }
+
+//            // Asegurar que el cuadro delimitador esté estrictamente dentro de los límites del Bitmap
+//            val left = bounds.left.coerceIn(0, source.width)
+//            val top = bounds.top.coerceIn(0, source.height)
+//            val width = bounds.width().coerceIn(0, source.width - left)
+//            val height = bounds.height().coerceIn(0, source.height - top)
 
             // Validar que el área de recorte sea válida
-            if (width <= 0 || height <= 0) return null
+            if (rectCrop.width() <= 0 || rectCrop.height() <= 0 ) return null
 
             // Si la imagen requiere rotación, configuramos la matriz
             val matrix = Matrix()
-            if (rotationDegrees != 0) {
-                matrix.postRotate(rotationDegrees.toFloat())
+            if (rotationDegrees > 0.0 || rotationDegrees < 0.0) {
+                matrix.postRotate(rotationDegrees)
             }
 
             // Corta y rota en una sola operación eficiente de memoria
-            return Bitmap.createBitmap(source, left, top, width, height, matrix, true)
+            return Bitmap.createBitmap(source, rectCrop.left, rectCrop.top, rectCrop.width(), rectCrop.height(), matrix, true)
         } catch (e: Exception) {
             e.printStackTrace()
             return null
@@ -1011,11 +1042,11 @@ class IngresoPeatonalActivity : AppCompatActivity() {
             val g = (pixelValue shr 8 and 0xFF)
             val b = (pixelValue and 0xFF)
 
-            // Normalización estándar (0 a 1).
+            // Normalización estándar (0 a 1). usa: (r  / 255.0f )
             // Si tu modelo pide rango (-1 a 1), usa: (r - 127.5f) / 127.5f
-            byteBuffer.putFloat(r / 255.0f)
-            byteBuffer.putFloat(g / 255.0f)
-            byteBuffer.putFloat(b / 255.0f)
+            byteBuffer.putFloat((r - 127.5f) / 128.0f)
+            byteBuffer.putFloat((g - 127.5f) / 128.0f)
+            byteBuffer.putFloat((b - 127.5f) / 128.0f)
         }
         return byteBuffer
     }
@@ -1028,6 +1059,13 @@ class IngresoPeatonalActivity : AppCompatActivity() {
         val declaredLength = fileDescriptor.declaredLength
         return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
     }
+    private fun normalizarEmbedding(embedding: FloatArray): FloatArray {
+        var sum = 0.0f
+        for (v in embedding) sum += v * v
+        val norm = Math.sqrt(sum.toDouble()).toFloat()
+        for (i in embedding.indices) embedding[i] = embedding[i] / norm
+        return embedding
+    }
     private fun extractFaceEmbedding(faceBitmap: android.graphics.Bitmap): FloatArray {
         // Redimensionar el bitmap al tamaño que requiera tu modelo FaceNet (ej. 160x160 o 112x112)
         val resizedBitmap = android.graphics.Bitmap.createScaledBitmap(faceBitmap, 160, 160, true)
@@ -1039,7 +1077,7 @@ class IngresoPeatonalActivity : AppCompatActivity() {
         // Ejecución de la inferencia en TensorFlow Lite
         faceNetInterpreter.run(inputBuffer, outputArray)
 
-        return outputArray[0] // Este es el "código matemático" único del rostro
+        return normalizarEmbedding(outputArray[0]) // Este es el "código matemático" único del rostro
     }
 
 
