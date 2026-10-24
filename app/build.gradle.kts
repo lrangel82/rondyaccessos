@@ -96,7 +96,7 @@ dependencies {
     implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")
 
     // Google ML Kit (Detección de Rostros y QR)
-    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.0")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("com.google.mlkit:barcode-scanning:17.2.0")
     implementation("com.google.mlkit:face-detection:16.1.7")
     implementation("com.google.code.gson:gson:2.10.1")

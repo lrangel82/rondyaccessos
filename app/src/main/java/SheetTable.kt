@@ -10,7 +10,8 @@ enum class SheetTable(
     var sheetName: String,
     val cacheKey: String,
     val range: String = "A:Z",
-    val headers: List<String>
+    val headers: List<String>,
+    var worksheet_id: String = ""
 ) {
     PARKING_SLOTS("ParkingSlots", "parkingSlots", "A:C", listOf("Latitud", "Longitud", "ParkingKeySlot")), //
     AUTOS_EVENTOS("AutosEventos", "autosEventos", "A:E", listOf("placa", "date", "time", "localPhotoPath", "ParkingSlotKey")), //
@@ -25,6 +26,7 @@ enum class SheetTable(
     DIRECCIONES("DomicilioUbicacion", "directions", "A:F", listOf("calle", "numero", "latitud", "longitud","ext","fijo")),  //
     AUTOS_REGISTRADOS("AutosRegistrados", "autosRegistrados", "A:I", listOf("Placas","Calle","Numero","Marca","Modelo","Color","Tag","Tag2","userid")), //placa,calle,numero,marca,modelo,color,tag
     RESIDENTES_UNIDAD("ResidentesUnidad", "residentesUnidad", "A:Q", listOf("userid","clave","calle","numero","tipo","nombre","telefono","email","celular","notas","ciudad","estado","fecha_updated_condovive","fecha_updated_app","es_nuevo","es_actualizado","es_eliminado")),
+    ALL_RESIDENTES_UNIDAD("ResidentesUnidad", "AllResidentesUnidad", "A:Q", listOf("userid","clave","calle","numero","tipo","nombre","telefono","email","celular","notas","ciudad","estado","fecha_updated_condovive","fecha_updated_app","es_nuevo","es_actualizado","es_eliminado")),
     ALARMAS_RONDIN("AlarmasRondin","alarmasRondin","A:B", listOf("Hora","Nombre")),
 
 
@@ -62,9 +64,40 @@ enum class SheetTable(
                 PLACAS_PROHIBIDAS to "WS_PLACAS_PROHIBIDAS"
             )
 
+            val configWorksheets = mapOf(
+                PERMISOS to "PERMISOS_SPREADSHEET_ID",
+                PARKING_SLOTS to "PARKING_SPREADSHEET_ID",
+                AUTOS_EVENTOS to "PARKING_SPREADSHEET_ID",
+                INCIDENCIAS to "PARKING_SPREADSHEET_ID",
+                INCIDENCIAS_CONFIG to "PARKING_SPREADSHEET_ID",
+                POR_REVISAR to "PARKING_SPREADSHEET_ID",
+                MULTAS to "PARKING_SPREADSHEET_ID",
+                DOMICILIO_WARNINGS to "PARKING_SPREADSHEET_ID",
+                VEHICULOS to "PARKING_SPREADSHEET_ID",
+                TAGS to "PARKING_SPREADSHEET_ID",
+                DIRECCIONES to "PARKING_SPREADSHEET_ID",
+                AUTOS_REGISTRADOS to "PARKING_SPREADSHEET_ID",
+                RESIDENTES_UNIDAD to "PARKING_SPREADSHEET_ID",
+                ALL_RESIDENTES_UNIDAD to "PARKING_SPREADSHEET_ID",
+                ALARMAS_RONDIN to "PARKING_SPREADSHEET_ID",
+
+                TELEFONOS_WHATSAPP to "WHATSAPP_SPREADSHEET_ID",
+                DOMICILIOS_MOROSOS to "SALDOS_SPREADSHEET_ID",
+
+                TIPO_ACCESOS to "REGISTRO_CARROS_SPREADSHEET_ID",
+                BITACORA_ACCESOS to "REGISTRO_CARROS_SPREADSHEET_ID",
+                EXCEPCIONES to "REGISTRO_CARROS_SPREADSHEET_ID",
+                TERRAZA_RESERVAS to "REGISTRO_CARROS_SPREADSHEET_ID",
+                PLACAS_PROHIBIDAS to "REGISTRO_CARROS_SPREADSHEET_ID",
+                QRS to "REGISTRO_CARROS_SPREADSHEET_ID",
+            )
+
             configKeys.forEach { (entry, settingKey) ->
                 // Intenta leer desde SharedPreferences, si no usa el fallback por defecto
                 entry.sheetName = settings.getString(settingKey, entry.sheetName)
+            }
+            configWorksheets.forEach { (entry, settingKey) ->
+                entry.worksheet_id = settingKey ?: "REGISTRO_CARROS_SPREADSHEET_ID"
             }
         }
     }
@@ -83,6 +116,7 @@ enum class CaptureStep {
     SELECCION_NUMERO,
     CONFRMAR_DOMICILIO,
     CAPTURA_NOMBRE,
+    SELECCIONA_INGRESO_PREVIO,
     CAPTURA_PLACA,
     CAPTURA_ROSTRO,
     PROCESANDO_AUTORIZACION,

@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.larangel.rondyaccesos.RondyApplication
+import com.larangel.rondyaccesos.common.DoorController
 import com.larangel.rondyaccesos.models.*
 import com.larangel.rondyaccesos.models.network.*
 import com.larangel.rondyaccesos.utils.*
@@ -20,6 +21,8 @@ import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 
@@ -30,6 +33,10 @@ class IngresoPeatonalViewModel(
     private val apiService: BotCasetaApiService,
     private val mySettings: MySettings
 ) : AndroidViewModel(application) {
+
+    // Propiedad para identificar el modo
+    val esModoSalida = mySettings.getString("MODO_OPERACION", "INGRESO") == "SALIDA"
+    private lateinit var doorController: DoorController // Nueva instancia centralizada
 
     private val _uiState = MutableStateFlow(IngresoPeatonalUiState())
     val uiState: StateFlow<IngresoPeatonalUiState> = _uiState.asStateFlow()
@@ -47,11 +54,8 @@ class IngresoPeatonalViewModel(
 
 
     var listadoMotivosPredefinidos: List<TipoAccesos> = emptyList()
-    var todosLosDomiciliosCache: List<List<Any>> = emptyList() // calle, numero, clave
-
-    // Control parameters loaded dynamically from your S3 configuration
-    var urlCamaraQrRtspFallback: String = ""
-    var usarCamaraLocalParaQr: Boolean = true
+    var todosLosDomiciliosCache: MutableMap<String, List<String>> = mutableMapOf() //List<List<Any>> = emptyList() // calle, numero, clave
+    var registroPeatonalLast24hr: List<List<Any>> = emptyList()
 
     // State flows to toggle the hardware reconfiguration screens on connection drops
     private val _camaraPlacaFalla = MutableStateFlow(false)
@@ -86,7 +90,9 @@ class IngresoPeatonalViewModel(
     private fun cargarConfiguracionesIniciales() {
         //listadoMotivosPredefinidos = listOf("Visitante", "Uber/Taxi", "Residente sin tag", "Paqueteria", "Gas", "ComidaADomicilio", "Policia", "Camion Basura", "Grua", "Ambulancia")
         listadoMotivosPredefinidos = dataRaw.getTiposAccesos().filter { it.esPeatonal }
-        todosLosDomiciliosCache = dataRaw.getDomiciliosUbicacion()
+        todosLosDomiciliosCache = dataRaw.getDomiciliosFullDict() as MutableMap<String, List<String>> //dataRaw.getDomiciliosUbicacion()
+        doorController = DoorController(getApplication())
+        registroPeatonalLast24hr = dataRaw.getBitacoraPeatonalAccesos24Hrs()
     }
 
     fun reiniciarAsistentePeatonal(porExito: Boolean = false) {
@@ -100,14 +106,26 @@ class IngresoPeatonalViewModel(
         //Close whatsappAlert
         _whatsappStatus.value = WhatsappAuthStatus.Idle
 
-        _uiState.update {
-            IngresoPeatonalUiState(
-                currentStep = CaptureStep.SELECCION_MOTIVO,
-                lblTopMensaje = "Asistente iniciado. Seleccione motivo.",
-                subtitulosAsistente = "Indiqueme el motivo de su ingreso, porfavor.",
-                segundosRestantes = TIMEOUT_RESET_ESTANDAR,
-                mencionarBienvenida = porExito, // Solo mencionar si viene de un éxito
-            )
+        if(esModoSalida){
+            _uiState.update {
+                IngresoPeatonalUiState(
+                    currentStep = CaptureStep.SELECCION_CALLE,
+                    lblTopMensaje = "A que domicilio ingreso?.",
+                    subtitulosAsistente = "Indiqueme el domicilio al que ingreso, porfavor.",
+                    segundosRestantes = TIMEOUT_RESET_ESTANDAR,
+                    mencionarBienvenida = false, // Solo mencionar si viene de un éxito
+                )
+            }
+        }else{
+            _uiState.update {
+                IngresoPeatonalUiState(
+                    currentStep = CaptureStep.SELECCION_MOTIVO,
+                    lblTopMensaje = "Asistente iniciado. Seleccione motivo.",
+                    subtitulosAsistente = "Indiqueme el motivo de su ingreso, porfavor.",
+                    segundosRestantes = TIMEOUT_RESET_ESTANDAR,
+                    mencionarBienvenida = porExito, // Solo mencionar si viene de un éxito
+                )
+            }
         }
 
         viewModelScope.launch {
@@ -120,7 +138,7 @@ class IngresoPeatonalViewModel(
         app.registroCallbackActivo = { calle, numero, nombre, motivo, placa ->
             procesarEntidadesExtraidasPorGemini(calle, numero, nombre, motivo, placa)
         }
-        if (porExito) {
+        if (porExito && !esModoSalida) {
             geminiVoiceAssistant.forzarLocucionPorAltavoz("Acceso autorizado. Bienvenido.")
         }
         if (_uiState.value.mencionarBienvenida) {
@@ -128,6 +146,10 @@ class IngresoPeatonalViewModel(
             // Una vez dicha, bajamos el flag para que reinicios por inactividad no la repitan
             _uiState.update { it.copy(mencionarBienvenida = false) }
         }
+
+        //Recargar los accesos de hoy
+        registroPeatonalLast24hr = dataRaw.getBitacoraPeatonalAccesos24Hrs()
+
         iniciarTimerInactividad()
     }
 
@@ -173,7 +195,11 @@ class IngresoPeatonalViewModel(
             _uiState.update { it.copy(mostrarSplash = false) }
 
             // Al despertar por toque o voz "Hola", sí damos la bienvenida
-            geminiVoiceAssistant.forzarLocucionPorAltavoz("Bienvenido al condominio. Indique el motivo de su visita.")
+            if (esModoSalida)
+                geminiVoiceAssistant.forzarLocucionPorAltavoz("Muestreme el QR o vea hacia la camara para registrar su salida.")
+            else
+                geminiVoiceAssistant.forzarLocucionPorAltavoz("Bienvenido al condominio. Cual es el motivo de su ingreso?.")
+
             iniciarTimerInactividad()
             reiniciarAsistentePeatonal()
         }
@@ -182,6 +208,20 @@ class IngresoPeatonalViewModel(
     // -- CAMARAS
     fun reportarFallaConexionQr() {
         _camaraQrFalla.value = true
+    }
+    fun convertFechafromQRtoInstant(fecha:String): Instant? {
+        try {
+            // Reemplaza la 'T' para homologar parseos ISO nativos de Java 8+
+            val limpiaFecha = fecha.replace(" ", "T")
+            // Si no contiene indicador de zona horaria Z, se concatena para asegurar compatibilidad UTC
+            val formatoIso = if (!limpiaFecha.endsWith("Z")) limpiaFecha + "Z" else limpiaFecha
+
+            val fechaCreacionInstant = java.time.Instant.parse(formatoIso)
+            return fechaCreacionInstant
+        } catch (e: Exception) {
+            Log.e("ValidacionQR", "Error al procesar la estampa de tiempo UTC del QR: ${e.message}")
+        }
+        return null
     }
     fun procesarContenidoQrDetectado(rawText: String) {
         if (qrCooldownActivo || flujoResuelto.get()) return
@@ -240,11 +280,14 @@ class IngresoPeatonalViewModel(
             val nombreInvitadoQr  = registroQrList[3].toString()
             val placasQr          = registroQrList[4].toString()
             val telefonoCreadorQr = registroQrList[5].toString()
-            val fechaCreadoStr    = registroQrList[6].toString() // Ejemplo: "2026-06-02T01:02:33.236622"
+            val fechaCreadoStr    = registroQrList[6].toString()
+            val fechaCreado       = convertFechafromQRtoInstant(fechaCreadoStr) // Ejemplo: "2026-06-02T01:02:33.236622"
             val estaVencidoFlag   = registroQrList[7].toString()
+            val mas72Horas = fechaCreado?.plus(72, java.time.temporal.ChronoUnit.HOURS)?.isBefore(java.time.Instant.now())
+                ?: false
 
             // 5. FILTRO: Verificar si ya fue marcado previamente como quemado/vencido ("1")
-            if (estaVencidoFlag == "1") {
+            if (estaVencidoFlag == "1" && !esModoSalida ) {
                 withContext(Dispatchers.Main) {
                     // 🟡 POP-UP AMARILLO: QR Vencido por uso previo
                     val msg="QR vencido, este ya ha sido utilizado anteriormente."
@@ -257,26 +300,7 @@ class IngresoPeatonalViewModel(
                 return@launch
             }
 
-            // 6. FILTRO: Validación cronológica de 72 horas máximas de ciclo de vida
-            var esMayor72Horas = false
-            try {
-                // Reemplaza la 'T' para homologar parseos ISO nativos de Java 8+
-                val limpiaFecha = fechaCreadoStr.replace(" ", "T")
-                // Si no contiene indicador de zona horaria Z, se concatena para asegurar compatibilidad UTC
-                val formatoIso = if (!limpiaFecha.endsWith("Z")) limpiaFecha + "Z" else limpiaFecha
-
-                val fechaCreacionInstant = java.time.Instant.parse(formatoIso)
-                val ahoraInstant = java.time.Instant.now()
-
-                // Evalúa si la fecha actual es posterior al límite de vida (Creación + 72 horas)
-                if (fechaCreacionInstant.plus(72, java.time.temporal.ChronoUnit.HOURS).isBefore(ahoraInstant)) {
-                    esMayor72Horas = true
-                }
-            } catch (e: Exception) {
-                Log.e("ValidacionQR", "Error al procesar la estampa de tiempo UTC del QR: ${e.message}")
-            }
-
-            if (esMayor72Horas) {
+            if (mas72Horas ) {
                 // Quemamos el token de inmediato en la base de datos local
                 dataRaw.vencerQR(payloadLimpio)
                 withContext(Dispatchers.Main) {
@@ -293,9 +317,8 @@ class IngresoPeatonalViewModel(
 
             // 7. EVALUACIÓN: Regla del Caso Especial de Amenidades ("TERRAZA" / Áreas Comunes)
             val esCasoTerraza = calleQr.uppercase().contains("TERRAZA")
-            var esMismoDia = true
-
             if (esCasoTerraza) {
+                var esMismoDia = true
                 try {
                     // Extrae solo la porción de fecha "YYYY-MM-DD"
                     val diaCreado = fechaCreadoStr.split("T")[0]
@@ -348,16 +371,20 @@ class IngresoPeatonalViewModel(
             withContext(Dispatchers.Main) {
                 // 🟢 POP-UP VERDE: Acceso Autorizado con Destino Explicitado
                 _whatsappStatus.value = WhatsappAuthStatus.Autorizado
-                _uiState.update { it.copy(lblTopMensaje = "ACCESO AUTORIZADO - BIENVENIDO") }
-
-                geminiVoiceAssistant.forzarLocucionPorAltavoz("Código QR aceptado.")
+                if (esModoSalida) {
+                    _uiState.update { it.copy(lblTopMensaje = "AUTORIZADO - HASTA LUEGO") }
+                    geminiVoiceAssistant.forzarLocucionPorAltavoz("Hasta luego.")
+                }else{
+                    _uiState.update { it.copy(lblTopMensaje = "ACCESO AUTORIZADO - BIENVENIDO") }
+                    geminiVoiceAssistant.forzarLocucionPorAltavoz("Código QR aceptado.")
+                }
                 delay(3000)
 
                 // Disparamos la lógica de almacenamiento e imágenes
                 ejecutarGuardadoTransaccionalFinal(_uiState.value)
 
                 // 10. NOTIFICACIÓN COMPLEMENTARIA: Caso especial Terraza avisa al creador por WhatsApp
-                if (esCasoTerraza && telefonoCreadorQr.isNotEmpty()) {
+                if (!esModoSalida && esCasoTerraza && telefonoCreadorQr.isNotEmpty()) {
                     val telefonoDestinoNotif = listOf(telefonoCreadorQr.telefonoParaTwilio())
 
                     // Creamos un registro bitácora temporal solo para alimentar el payload del mánager de mensajería
@@ -434,8 +461,13 @@ class IngresoPeatonalViewModel(
                 viewModelScope.launch(Dispatchers.Main) {
                     // 🟢 POP-UP VERDE: Acceso Autorizado con Destino Explicitado
                     _whatsappStatus.value = WhatsappAuthStatus.Autorizado
-                    geminiVoiceAssistant.forzarLocucionPorAltavoz("ACCESO AUTORIZADO - BIENVENIDO")
-                    _uiState.update { it.copy(lblTopMensaje = "ACCESO AUTORIZADO - BIENVENIDO") }
+                    if(!esModoSalida) {
+                        geminiVoiceAssistant.forzarLocucionPorAltavoz("AUTORIZADO - BIENVENIDO")
+                        _uiState.update { it.copy(lblTopMensaje = "ACCESO AUTORIZADO - BIENVENIDO") }
+                    }else {
+                        geminiVoiceAssistant.forzarLocucionPorAltavoz("Hasta luego.")
+                        _uiState.update { it.copy(lblTopMensaje = "AUTORIZADO - HASTA LUEGO") }
+                    }
                     delay(5000)
                     reiniciarAsistentePeatonal()
                 }
@@ -474,7 +506,6 @@ class IngresoPeatonalViewModel(
             it.copy(
                 calleInput = calle,
                 numeroInput = "",
-                //currentStep = CaptureStep.SELECCION_NUMERO,
                 lblTopMensaje = "Seleccione el número de casa para la calle $calle:"
             )
         }
@@ -484,7 +515,7 @@ class IngresoPeatonalViewModel(
     fun seleccionarNumero(numero: String) {
         iniciarTimerInactividad()
         // 1. Validar si el motivo actual seleccionado es Paquetería
-        if (_uiState.value.motivoInput?.variosDomicilios ?: false ) {
+        if (!esModoSalida && _uiState.value.motivoInput?.variosDomicilios ?: false ) {
             // 🚀 DESVÍO: En lugar de pasar a pedir el nombre, mandamos esta dirección a la lista interna
             // Pasamos la calle que ya estaba guardada en el estado y el número que acaba de llegar
             registrarDireccionPaqueteriaActualYPreguntar(_uiState.value.calleInput, numero)
@@ -503,7 +534,7 @@ class IngresoPeatonalViewModel(
     fun confirmarDireccion(respuesta: String){
         iniciarTimerInactividad()
         if (respuesta.contains("SI")){
-            if (_uiState.value.motivoInput?.variosDomicilios ?: false ) {
+            if (!esModoSalida && _uiState.value.motivoInput?.variosDomicilios ?: false ) {
                 // Si el reingreso inteligente detecta paquetería, registramos esa primera casa y preguntamos por más
                 registrarDireccionPaqueteriaActualYPreguntar(_uiState.value.calleInput, _uiState.value.numeroInput)
             } else {
@@ -533,13 +564,9 @@ class IngresoPeatonalViewModel(
         _uiState.update {
             it.copy(
                 conductorInput = nombre.uppercase(),
-                //currentStep = CaptureStep.CAPTURA_PLACA,
-                lblTopMensaje = "Valide la placa tecleada o leída por la cámara:"
             )
         }
         evaluaDatosMaquinaDeEstados()
-        //controlarCicloDeVidaDeStreaming()
-        //validarMotivoYSolicitarAutorizacion()
     }
 
     fun registrarDireccionPaqueteriaActualYPreguntar(calle: String, numero: String) {
@@ -568,6 +595,9 @@ class IngresoPeatonalViewModel(
     }
     fun registrarRostro(faceBitmap: Bitmap, embedding: FloatArray) {
         val istheFirstTime = _uiState.value.currentFaceEmbedding == null || _uiState.value.currentFaceEmbedding!!.isEmpty()
+        if (_uiState.value.mostrarSplash) {
+            despertarAsistente(esPorVoz = true)
+        }
         _uiState.update {
             it.copy(
                 currentFaceBitmap = faceBitmap,
@@ -578,7 +608,8 @@ class IngresoPeatonalViewModel(
         //Hay que procesar para buscar si este rostro ya habia ingresado anteriormente y si fue aprobado
         //debemos suponer que fue aprobado por el dia de hoy asi que dar acceso directo es correcto
         //y solo avisar que ingresa al mismo domicilio
-        if (_uiState.value.currentStep == CaptureStep.SELECCION_MOTIVO)
+        if ((!esModoSalida && _uiState.value.currentStep == CaptureStep.SELECCION_MOTIVO) ||
+            (esModoSalida && _uiState.value.currentStep == CaptureStep.SELECCION_CALLE) )
             viewModelScope.launch(Dispatchers.Default) {
                 // 3. CONSULTA: Buscar el ROSTRO en la capa de persistencia local indexada
                 val registroPeatonalLast24hr: List<List<Any>> = dataRaw.getBitacoraPeatonalAccesos24Hrs()
@@ -632,19 +663,11 @@ class IngresoPeatonalViewModel(
 
                             // 9. PERSISTENCIA: Ejecución del guardado transaccional final unificado
                             withContext(Dispatchers.Main) {
-                                // 🟢 POP-UP VERDE: Acceso Autorizado con Destino Explicitado
-                                _whatsappStatus.value = WhatsappAuthStatus.Autorizado
-                                _uiState.update { it.copy(lblTopMensaje = "ACCESO AUTORIZADO - BIENVENIDO") }
-
-                                geminiVoiceAssistant.forzarLocucionPorAltavoz("Bienvenido de nuevo ${nombreInvitado24h}.")
-                                delay(3000)
-
                                 // Disparamos la lógica de almacenamiento e imágenes
-                                ejecutarGuardadoTransaccionalFinal(_uiState.value)
-
+                                ejecutarFiltrosDeSeguridadCompleto(conAutorizacion = false)
 
                                 // Mantiene el banner verde de éxito en la pantalla física del guardia por 4 segundos antes de liberar la fila
-                                delay(4000)
+                                delay(3000)
                                 reiniciarAsistentePeatonal()
                                 qrCooldownActivo = false
                             }
@@ -685,9 +708,67 @@ class IngresoPeatonalViewModel(
         }
     }
 
+    //MAQUINA DE ESTADOS DEL FLUJO DE CAPTURA
+    fun evaluaDatosMaquinaDeEstados(){
+        val estadoActual = _uiState.value
+
+        // Si ya está procesando una autorización, congelamos cambios de pasos
+        if (estadoActual.currentStep == CaptureStep.PROCESANDO_AUTORIZACION) return
+
+        when {
+            estadoActual.tipoInput.isEmpty() && !esModoSalida -> {
+                geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme el motivo de su ingreso, porfavor.")
+                _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_MOTIVO) }
+            }
+
+            // Si es paquetería y no ha capturado ninguna dirección en la lista, pide la primera
+            !esModoSalida && _uiState.value.motivoInput?.variosDomicilios == true  && estadoActual.direccionesPaqueteria.isEmpty() && estadoActual.calleInput.isEmpty() -> {
+                geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme la calle del domicilio.")
+                _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_CALLE) }
+            }
+
+            // Si es paquetería y está respondiendo la pregunta del bucle
+            estadoActual.currentStep == CaptureStep.PREGUNTA_OTRA_DIRECCION -> {
+                // Mantiene el estado visual congelado hasta que responda SI o NO por voz/botón
+            }
+
+            // Para cualquier otro motivo que no tenga dirección capturada
+            (esModoSalida || _uiState.value.motivoInput?.variosDomicilios != true) && estadoActual.calleInput.isEmpty() -> {
+                geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme la calle del domicilio.")
+                _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_CALLE) }
+            }
+
+            (esModoSalida || _uiState.value.motivoInput?.variosDomicilios != true) && estadoActual.numeroInput.isEmpty() -> {
+                geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme el numero del domicilio.")
+                _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_NUMERO) }
+            }
+
+            (!esModoSalida && estadoActual.conductorInput.isEmpty()) || ( esModoSalida && estadoActual.conductorInput == "OTRO") -> {
+                geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme su nombre.")
+                _uiState.update { it.copy(currentStep = CaptureStep.CAPTURA_NOMBRE) }
+            }
+
+            esModoSalida && estadoActual.conductorInput.isEmpty() -> {
+                geminiVoiceAssistant.forzarLocucionPorAltavoz("Seleccione o digame su nombre.")
+                _uiState.update { it.copy(currentStep = CaptureStep.SELECCIONA_INGRESO_PREVIO) }
+            }
+
+            estadoActual.currentFaceEmbedding== null || estadoActual.currentFaceEmbedding.isEmpty() -> {
+                geminiVoiceAssistant.forzarLocucionPorAltavoz("Porfavor mire a la camara para registrar su rostro.")
+                _uiState.update { it.copy(currentStep = CaptureStep.CAPTURA_ROSTRO) }
+            }
+
+
+            else -> {
+                // ¡DATOS COMPLETOS VIA ASISTENTE DE VOZ! Ejecuta la solicitud final
+                validarMotivoYSolicitarAutorizacion()
+            }
+        }
+    }
+
     fun validarMotivoYSolicitarAutorizacion(){
         //EL motivo acepta varias DIRECCIONES, si si gaurdar registro en todas
-        if (_uiState.value.motivoInput!= null && _uiState.value.motivoInput!!.variosDomicilios && _uiState.value.direccionesPaqueteria.size > 1) {
+        if (!esModoSalida && _uiState.value.motivoInput!= null && _uiState.value.motivoInput!!.variosDomicilios && _uiState.value.direccionesPaqueteria.size > 1) {
             // CASO ESPECIAL: Es un recorrido. No se pide autorización, se procesan ráfagas de inserción
             if (!flujoResuelto.compareAndSet(false, true)) return
             timerInactividadJob?.cancel()
@@ -734,61 +815,8 @@ class IngresoPeatonalViewModel(
         }
     }
 
-    //MAQUINA DE ESTADOS DEL FLUJO DE CAPTURA
-    fun evaluaDatosMaquinaDeEstados(){
-        val estadoActual = _uiState.value
-
-        // Si ya está procesando una autorización, congelamos cambios de pasos
-        if (estadoActual.currentStep == CaptureStep.PROCESANDO_AUTORIZACION) return
-
-        when {
-            estadoActual.tipoInput.isEmpty() -> {
-                geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme el motivo de su ingreso, porfavor.")
-                _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_MOTIVO) }
-            }
-
-            // Si es paquetería y no ha capturado ninguna dirección en la lista, pide la primera
-            _uiState.value.motivoInput?.variosDomicilios == true  && estadoActual.direccionesPaqueteria.isEmpty() && estadoActual.calleInput.isEmpty() -> {
-                geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme la calle del domicilio.")
-                _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_CALLE) }
-            }
-
-            // Si es paquetería y está respondiendo la pregunta del bucle
-            estadoActual.currentStep == CaptureStep.PREGUNTA_OTRA_DIRECCION -> {
-                // Mantiene el estado visual congelado hasta que responda SI o NO por voz/botón
-            }
-
-            // Para cualquier otro motivo que no tenga dirección capturada
-            _uiState.value.motivoInput?.variosDomicilios != true && estadoActual.calleInput.isEmpty() -> {
-                geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme la calle del domicilio.")
-                _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_CALLE) }
-            }
-
-            _uiState.value.motivoInput?.variosDomicilios != true && estadoActual.numeroInput.isEmpty() -> {
-                geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme el numero del domicilio.")
-                _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_NUMERO) }
-            }
-
-            estadoActual.conductorInput.isEmpty() -> {
-                geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme su nombre.")
-                _uiState.update { it.copy(currentStep = CaptureStep.CAPTURA_NOMBRE) }
-            }
-
-            estadoActual.currentFaceEmbedding== null || estadoActual.currentFaceEmbedding.isEmpty() -> {
-                geminiVoiceAssistant.forzarLocucionPorAltavoz("Porfavor mire a la camara para registrar su rostro.")
-                _uiState.update { it.copy(currentStep = CaptureStep.CAPTURA_ROSTRO) }
-            }
-
-
-            else -> {
-                // ¡DATOS COMPLETOS VIA ASISTENTE DE VOZ! Ejecuta la solicitud final
-                validarMotivoYSolicitarAutorizacion()
-            }
-        }
-    }
-
     //VALIDAR SEGURIDAD Y EXCEPCIONES
-    fun ejecutarFiltrosDeSeguridadCompleto() {
+    fun ejecutarFiltrosDeSeguridadCompleto(conAutorizacion: Boolean = true) {
         val calle = _uiState.value.calleInput
         val numero= _uiState.value.numeroInput
         viewModelScope.launch(Dispatchers.Default) {
@@ -822,7 +850,7 @@ class IngresoPeatonalViewModel(
 
             // 2. Matrix Validation: Dynamic Exception Check Engine
             val excepcionActiva = buscarExcepcionParaDomicilio(calle, numero, currentState.conductorInput, "")
-            if (excepcionActiva != null) {
+            if (!esModoSalida && excepcionActiva != null) {
 
                 // Hay excepcion de un solo USO y es del mismo tipo el ingreso
                 val matchTipo = listadoMotivosPredefinidos.find { it.name.uppercase().contains(excepcionActiva.conductor.uppercase())  }
@@ -861,7 +889,7 @@ class IngresoPeatonalViewModel(
             }
 
             // 3. Permisos
-            if(_uiState.value.motivoInput?.RequierePermisoAdmon == true){
+            if(!esModoSalida && _uiState.value.motivoInput?.RequierePermisoAdmon == true){
                 val permisosHoy = dataRaw.getPermisosCache_DeHoy()
                 val permisoDom = permisosHoy.find {
                     it[1].toString().equals(calle,ignoreCase = true) && it[2].toString().equals(numero,ignoreCase = true)
@@ -893,8 +921,10 @@ class IngresoPeatonalViewModel(
 
 
             // 4. Fallback: Base authorization flow sequence if no flags are triggered
-            iniciarFlujoAutorizacion()
-
+            if (!esModoSalida && conAutorizacion)
+                iniciarFlujoAutorizacion()
+            else
+                ejecutarGuardadoTransaccionalFinal(_uiState.value)
         }
     }
     private fun buscarExcepcionParaDomicilio(calle: String, numero: String, conductor: String, placa: String): ExcepcionRondin? {
@@ -990,6 +1020,7 @@ class IngresoPeatonalViewModel(
                         // Estructuramos el estado actual en un JSON para dárselo como contexto a Gemini
                         val datosAcumuladosJson = """
                     {
+                      "esModoSalida": "${esModoSalida}",
                       "paso_actual": "${pasoActual.name}",
                       "motivo_actual": "${_uiState.value.tipoInput}",
                       "calle_actual": "${_uiState.value.calleInput}",
@@ -1063,8 +1094,13 @@ class IngresoPeatonalViewModel(
                         viewModelScope.launch(Dispatchers.Main) {
                             // 🟢 POP-UP VERDE: Acceso Autorizado con Destino Explicitado
                             _whatsappStatus.value = WhatsappAuthStatus.Autorizado
-                            geminiVoiceAssistant.forzarLocucionPorAltavoz("ACCESO AUTORIZADO - BIENVENIDO")
-                            _uiState.update { it.copy(lblTopMensaje = "ACCESO AUTORIZADO - BIENVENIDO") }
+                            if(esModoSalida) {
+                                geminiVoiceAssistant.forzarLocucionPorAltavoz("Hasta luego")
+                                _uiState.update { it.copy(lblTopMensaje = "AUTORIZADO - Hasta luego") }
+                            }else{
+                                geminiVoiceAssistant.forzarLocucionPorAltavoz("ACCESO AUTORIZADO - BIENVENIDO")
+                                _uiState.update { it.copy(lblTopMensaje = "ACCESO AUTORIZADO - BIENVENIDO") }
+                            }
                             delay(5000)
                             reiniciarAsistentePeatonal()
                             return@launch // Terminación inmediata del flujo
@@ -1167,7 +1203,7 @@ class IngresoPeatonalViewModel(
                         conductorInput = nombre,
                         //currentStep = CaptureStep.CAPTURA_PLACA, // Advance step automatically
                         //subtitulosAsistente = "Nombre: $nombre. Ingrese su placa."
-                    )
+                        )
                     }
                 }
             }
@@ -1214,7 +1250,7 @@ class IngresoPeatonalViewModel(
 
             CaptureStep.SELECCION_CALLE -> {
                 // Extraer las calles únicas dadas de alta en el condominio
-                val listaCallesUnicas = todosLosDomiciliosCache.map { it[0].toString() }.distinct()
+                val listaCallesUnicas = todosLosDomiciliosCache.keys.toMutableList() //.map { it[0].toString() }.distinct()
                 val matchCalle = listaCallesUnicas.find { it.uppercase() == query || query.uppercase().contains(it.uppercase()) || it.uppercase().contains(query.uppercase()) }
 
                 if (matchCalle != null) {
@@ -1228,12 +1264,12 @@ class IngresoPeatonalViewModel(
 
             CaptureStep.SELECCION_NUMERO -> {
                 // Filtrar los números válidos en RAM que pertenecen a la calle que ya se seleccionó
-                val numerosValidosParaCalle = todosLosDomiciliosCache
-                    .filter { it[0].toString().equals(_uiState.value.calleInput, ignoreCase = true) }
-                    .map { it[1].toString() }
+                val numerosValidosParaCalle = todosLosDomiciliosCache[_uiState.value.calleInput]
+                    //.filter { it[0].toString().equals(_uiState.value.calleInput, ignoreCase = true) }
+                    //.map { it[1].toString() }
 
                 // Buscamos si el dictado numérico coincide con alguna de las casas existentes
-                val matchNumero = numerosValidosParaCalle.find { it.uppercase() == query.uppercase() }
+                val matchNumero = numerosValidosParaCalle?.find { it.uppercase() == query.uppercase() }
 
                 if (matchNumero != null) {
                     _uiState.update { it.copy(subtitulosAsistente = "🤖 Numero seleccionado: $matchNumero") }
@@ -1243,6 +1279,23 @@ class IngresoPeatonalViewModel(
                     // DataRawRondin.getDomiclioSimilar(calle, numero)
                     geminiVoiceAssistant.forzarLocucionPorAltavoz("Numero inexistente. Seleccione el correcto de lista.", false)
                     _uiState.update { it.copy(subtitulosAsistente = "🤖Escucue: \"$query\"\n  Número inválido para la calle ${_uiState.value.calleInput}.") }
+                }
+            }
+
+            CaptureStep.SELECCIONA_INGRESO_PREVIO -> {
+                val visitasDomicilio = registroPeatonalLast24hr.filter {
+                    it[3].toString().equals(_uiState.value.calleInput, ignoreCase = true) && it[4].toString().equals(_uiState.value.numeroInput, ignoreCase = true)
+                }.map { it[6].toString() }
+
+                //Buscamos si el dictado coincide con alguna de las visitas
+                val matchVisita = visitasDomicilio.find { it.uppercase() == query.uppercase() }
+
+                if (matchVisita != null) {
+                    _uiState.update { it.copy(subtitulosAsistente = "🤖 Visita registrada: $matchVisita") }
+                    guardarNombreYPasarAAutorizar(matchVisita)
+                } else {
+                    geminiVoiceAssistant.forzarLocucionPorAltavoz("No coinciden con ninguna visita. Seleccione el correcto de lista.", false)
+                    _uiState.update { it.copy(subtitulosAsistente = "🤖Escucue: \"$query\"\n  Ingreso previo inexistente") }
                 }
             }
 
@@ -1866,96 +1919,140 @@ class IngresoPeatonalViewModel(
 
             guardarMutex.withLock {
                 _uiState.update { it.copy(lblTopMensaje = "Procesando registro...") }
-                // 1. Safe extraction from the Application dynamic callback link
-                val app = getApplication<RondyApplication>()
-                //val bitmapPlacaLive: Bitmap? = app.imagenesCallBackActivo?.invoke("PLACA")
-                val bitmapRostroLive: Bitmap? = app.imagenesCallBackActivo?.invoke("ROSTRO")
-
-
                 // 1. Generar estampas de tiempo unificadas para consistencia de datos
-                val fechaActualStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
-                val horaActualStr = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+                val fechaActualStr =
+                    java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                        .format(java.util.Date())
+                val horaActualStr =
+                    java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+                        .format(java.util.Date())
                 val timestampCombinado = "$fechaActualStr $horaActualStr"
                 val esDenegado = state.status.esDenegado()
                 val esAutorizado = !esDenegado
 
-                _uiState.update { it.copy(lblTopMensaje = "Almacenando evidencias...") }
+                var accesoBitacora: AccesoBitacora? = null
+                _whatsappStatus.value = WhatsappAuthStatus.Idle
 
-                val uploadAndCloseJob = async(context = Dispatchers.IO) {
-                    // Feature 4: Temporal 30-day Image Ephemeral Upload Module
-                    val urlRostro = CloudStorageManager.subirImagenTemporal(
-                        context = getApplication(),
-                        fileName = "rostro_${state.calleInput}_${state.numeroInput}_${System.currentTimeMillis()}.jpg",
-                        bitmap = bitmapRostroLive,
-                        calidad = 60,
+                //ES INGRESO GUARDAR FOTOS
+                if (!esModoSalida || state.motivoInput != null) {
+                    // 1. Safe extraction from the Application dynamic callback link
+                    val app = getApplication<RondyApplication>()
+                    //val bitmapPlacaLive: Bitmap? = app.imagenesCallBackActivo?.invoke("PLACA")
+                    val bitmapRostroLive: Bitmap? = app.imagenesCallBackActivo?.invoke("ROSTRO")
+
+                    _uiState.update { it.copy(lblTopMensaje = "Almacenando evidencias...") }
+
+                    val uploadAndCloseJob = async(context = Dispatchers.IO) {
+                        // Feature 4: Temporal 30-day Image Ephemeral Upload Module
+                        val urlRostro = CloudStorageManager.subirImagenTemporal(
+                            context = getApplication(),
+                            fileName = "rostro_${state.calleInput}_${state.numeroInput}_${System.currentTimeMillis()}.jpg",
+                            bitmap = bitmapRostroLive,
+                            calidad = 60,
+                            mySettings = mySettings
+                        )
+
+                        urlRostro
+                    }
+
+                    val url1 = uploadAndCloseJob.await()
+                    urlFoto1 = url1
+
+                    // Feature 5: Update previous open records lacking 'fechaSalida'
+                    dataRaw.actulizarSalidaAccesosPeatonal(
+                        state.conductorInput,
+                        state.calleInput,
+                        state.numeroInput,
+                        timestampCombinado,
+                        "salida CORREGIDA POR APP"
+                    )
+
+                    //  Construir la Entidad Estructurada para DataRawRondin (Alineada a las 13 columnas de Sheets)
+                    accesoBitacora = AccesoBitacora(
+                        fechaCreado = timestampCombinado,
+                        fechaIngreso = timestampCombinado,
+                        placa = "PEATONAL",
+                        calle = state.calleInput,
+                        numero = state.numeroInput,
+                        tipo = state.tipoInput,
+                        conductor = state.conductorInput,
+                        descripcion = state.descripcionInput,
+                        foto1Url = urlFoto1,
+                        foto2Url = urlFoto2,
+                        qrData = state.qrData,
+                        fechaSalida = "",
+                        status = if (esAutorizado) "AUTORIZADO" else "DENEGADO"
+                    )
+
+                    _uiState.update { it.copy(
+                        lblTopMensaje = if (esAutorizado) "ACCESO AUTORIZADO" else "ACCESO DENEGADO",
+                        mostrarPanelResultadoDerecho = true,
+                        resultadoEsAutorizado = esAutorizado,
+                        resultadoMotivoPrincipal = if (esAutorizado) "¡PASE ENTRADA!" else "INGRESO PROHIBIDO",
+                        resultadoMotivoDetalle = state.descripcionInput
+                    ) }
+
+                    // Envío Distribuido al Nodo Central (Caseta Padre) protegido contra fallas de red
+                    try {
+                        // Se ejecuta de manera asíncrona dedicada para no colgar el flujo si el servidor TCP tarda en responder
+                        withContext(Dispatchers.IO) {
+                            //socketClient.enviarRegistroACaseta(msg)
+                            networkManager.replicarIngreso(accesoBitacora)
+                        }
+                    } catch (e: Exception) {
+                        Log.e("IngresoPEATONAL", "Fallo de red local en Ktor Socket (Caseta remota inaccesible). Continuando en modo Offline-First.", e)
+                    }
+
+                    // 5. Persistir de forma inmediata en la capa de datos unificada de la app (RAM + MySettings + Queue)
+                    _uiState.update { it.copy(lblTopMensaje = "Guardando en bitácora local...") }
+                    val guardadoLocalExitoso = withContext(Dispatchers.IO) {
+                        dataRaw.addBitacoraAccesos(accesoBitacora)
+                    }
+
+                    if (!guardadoLocalExitoso) {
+                        Log.e("IngresoPEATONALVM", "Error crítico al intentar indexar el acceso en las estructuras de DataRawRondin.")
+                    }
+
+                    // Feature 6: WhatsApp Async Double Notification Pipeline (Template + Images)
+                    val telefonosDomicilio = dataRaw.getWhatsappTelefonosDomicilio(state.calleInput, state.numeroInput)
+                    val telefonosFiltrados: List<String> = telefonosDomicilio.map { fila ->
+                        fila[2].toString()
+                    }
+                    WhatsAppNotificationManager.despacharNotificacionesDomicilio(
+                        telefonos = telefonosFiltrados,
+                        acceso = accesoBitacora,
                         mySettings = mySettings
                     )
 
+                }else{
+                    //######## ES SALIDA ############
+
                     // Feature 5: Update previous open records lacking 'fechaSalida'
-                    dataRaw.actulizarSalidaAccesosPeatonal(state.conductorInput, state.calleInput,state.numeroInput, timestampCombinado)
+                    dataRaw.actulizarSalidaAccesosPeatonal(
+                        state.conductorInput,
+                        state.calleInput,
+                        state.numeroInput,
+                        timestampCombinado,
+                        "SALIDA REGISTRADA"
+                    )
 
-                    urlRostro
+                    _uiState.update { it.copy(
+                        lblTopMensaje = if (esAutorizado) "HASTA LUEGO" else "ACCESO DENEGADO",
+                        mostrarPanelResultadoDerecho = true,
+                        resultadoEsAutorizado = esAutorizado,
+                        resultadoMotivoPrincipal = if (esAutorizado) "¡ADIOS!" else "SALIDA DENEGADA",
+                        resultadoMotivoDetalle = state.descripcionInput
+                    ) }
                 }
 
-                val url1 = uploadAndCloseJob.await()
-                urlFoto1 = url1
-
-                //  Construir la Entidad Estructurada para DataRawRondin (Alineada a las 13 columnas de Sheets)
-                val accesoBitacora = AccesoBitacora(
-                    fechaCreado = timestampCombinado,
-                    fechaIngreso = timestampCombinado,
-                    placa = "PEATONAL",
-                    calle = state.calleInput,
-                    numero = state.numeroInput,
-                    tipo = state.tipoInput,
-                    conductor = state.conductorInput,
-                    descripcion = state.descripcionInput,
-                    foto1Url = urlFoto1,
-                    foto2Url = urlFoto2,
-                    qrData = state.qrData,
-                    fechaSalida = "",
-                    status = if (esAutorizado) "AUTORIZADO" else "DENEGADO"
-                )
-
-                _uiState.update { it.copy(
-                    lblTopMensaje = if (esAutorizado) "ACCESO AUTORIZADO" else "ACCESO DENEGADO",
-                    mostrarPanelResultadoDerecho = true,
-                    resultadoEsAutorizado = esAutorizado,
-                    resultadoMotivoPrincipal = if (esAutorizado) "¡PASE ENTRADA!" else "INGRESO PROHIBIDO",
-                    resultadoMotivoDetalle = state.descripcionInput
-                ) }
-
-                // Envío Distribuido al Nodo Central (Caseta Padre) protegido contra fallas de red
-                try {
-                    // Se ejecuta de manera asíncrona dedicada para no colgar el flujo si el servidor TCP tarda en responder
-                    withContext(Dispatchers.IO) {
-                        //socketClient.enviarRegistroACaseta(msg)
-                        networkManager.replicarIngreso(accesoBitacora)
-                    }
-                } catch (e: Exception) {
-                    Log.e("IngresoPEATONALVM", "Fallo de red local en Ktor Socket (Caseta remota inaccesible). Continuando en modo Offline-First.", e)
+                //####### ABRIR PLUMA ####
+                if (esAutorizado) {
+                    doorController.abrirPuertaConfigurada()
+                    if (!esModoSalida)
+                        geminiVoiceAssistant.forzarLocucionPorAltavoz("Bienvenido pase ${state.conductorInput}.")
+                    else
+                        geminiVoiceAssistant.forzarLocucionPorAltavoz("Hasta luego ${state.conductorInput}.")
                 }
-
-                // 5. Persistir de forma inmediata en la capa de datos unificada de la app (RAM + MySettings + Queue)
-                _uiState.update { it.copy(lblTopMensaje = "Guardando en bitácora local...") }
-                val guardadoLocalExitoso = withContext(Dispatchers.IO) {
-                    dataRaw.addBitacoraAccesos(accesoBitacora)
-                }
-
-                if (!guardadoLocalExitoso) {
-                    Log.e("IngresoPEATONALVM", "Error crítico al intentar indexar el acceso en las estructuras de DataRawRondin.")
-                }
-
-                // Feature 6: WhatsApp Async Double Notification Pipeline (Template + Images)
-                val telefonosDomicilio = dataRaw.getWhatsappTelefonosDomicilio(state.calleInput, state.numeroInput)
-                val telefonosFiltrados: List<String> = telefonosDomicilio.map { fila ->
-                    fila[2].toString()
-                }
-                WhatsAppNotificationManager.despacharNotificacionesDomicilio(
-                    telefonos = telefonosFiltrados,
-                    acceso = accesoBitacora,
-                    mySettings = mySettings
-                )
 
                 // Retraso controlado para permitir que el operario visualice el estatus en la pantalla antes del reset
                 delay(4000)

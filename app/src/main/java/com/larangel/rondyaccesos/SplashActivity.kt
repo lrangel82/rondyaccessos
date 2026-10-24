@@ -126,8 +126,8 @@ class SplashActivity : AppCompatActivity() {
                     val bitacoraAccesos = dataRaw.getBitacoraAccesos(forceLoad = true, createIfNotExist = true)
                     txtStatus.text = txtStatus.text.toString() + "\n Bitacora:${bitacoraAccesos.count()}"
                     delay(500)
-                    val domicilios      = dataRaw.getDomiciliosUbicacion(forceLoad = true)
-                    txtStatus.text = txtStatus.text.toString() + "\n Domicilios:${domicilios.count()}"
+                    val domicilios      = dataRaw.getDomiciliosFullDict() // .getDomiciliosUbicacion(forceLoad = true)
+                    txtStatus.text = txtStatus.text.toString() + "\n Calles:${domicilios.count()}"
                     delay(500)
                     val whatsappTelefonos=dataRaw.getWhatsappTelefonos(forceLoad = true, createIfNotExist = true)
                     txtStatus.text = txtStatus.text.toString() + "\n Telefonos Whatsapp:${whatsappTelefonos.count()}"
@@ -183,8 +183,8 @@ class SplashActivity : AppCompatActivity() {
                     "CASETA" -> Intent(this, CasetaCentralActivity::class.java)
                     "INGRESO_VEHICULAR" -> Intent(this, IngresoVehicularActivity::class.java)
                     "INGRESO_PEATONAL" -> Intent(this, IngresoPeatonalActivity::class.java)
-                    "SALIDA_VEHICULAR" -> Intent(this, SalidaVehicularActivity::class.java)
-                    "SALIDA_PEATONAL" -> Intent(this, SalidaPeatonalActivity::class.java)
+                    "SALIDA_VEHICULAR" -> Intent(this, IngresoVehicularActivity::class.java)
+                    "SALIDA_PEATONAL" -> Intent(this, IngresoPeatonalActivity::class.java)
                     else -> Intent(this, VigilanteConfigActivity::class.java) // Si no se ha configurado el satélite
                 }
             }

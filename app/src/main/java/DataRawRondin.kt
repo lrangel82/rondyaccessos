@@ -223,7 +223,7 @@ class DataRawRondin(
     private suspend fun executeAppend(table: SheetTable): Boolean = withContext(Dispatchers.IO) {
         if (!isNetworkAvailable()) return@withContext false
         val state = tableStates[table]!!
-        val spreadId = mySettings.getString("PARKING_SPREADSHEET_ID", "")
+        val spreadId = mySettings.getString(table.worksheet_id, "")
         if (spreadId.isEmpty()) return@withContext false
         //val rangeStr = "${table.sheetName}!${table.range}"
         val rangeStr = "${table.sheetName}!A:A"
@@ -250,7 +250,7 @@ class DataRawRondin(
     private suspend fun executeUpdate(table: SheetTable): Boolean = withContext(Dispatchers.IO) {
         if (!isNetworkAvailable()) return@withContext false
         val state = tableStates[table]!!
-        val spreadId = mySettings.getString("PARKING_SPREADSHEET_ID", "")
+        val spreadId = mySettings.getString(table.worksheet_id, "")
         if (spreadId.isEmpty()) return@withContext false
         val iterator = state.forUpdate.indices.reversed()
 
@@ -279,12 +279,12 @@ class DataRawRondin(
         val state = tableStates[table] ?: return@withContext true
         if (state.forDeleteIndexes.isEmpty()) return@withContext true
 
-        var spreadsheetId = mySettings.getString("PARKING_SPREADSHEET_ID", "") ?: ""
+        var spreadsheetId = mySettings.getString(table.worksheet_id, "") ?: ""
         var rangeStr = "${table.sheetName}!${table.range}".toString()
 
         if (table == SheetTable.PERMISOS) {
             rangeStr = table.range.toString()
-            spreadsheetId = mySettings.getSimpleList("PERMISOS_SPREADSHEET_ID")[0].toString()
+            spreadsheetId = mySettings.getSimpleList(table.worksheet_id)[0].toString()
         }
 
         if (spreadsheetId.isEmpty()) return@withContext false
@@ -336,6 +336,22 @@ class DataRawRondin(
             Log.e(TAG, "No se pudo obtener el ID de la hoja $sheetName")
             null
         }
+    }
+    private suspend fun getSheetsNameRegex(spreadsheetId: String, regextoFind: Regex): List<String>{
+        return withContext(Dispatchers.IO) {
+            val spreadsheet = sheetsService.spreadsheets().get(spreadsheetId).execute()
+
+            spreadsheet.sheets
+                .filter { regextoFind.matches(it.properties.title) }
+                .map { it.properties.title }
+        }
+//        return try {
+//            val spreadsheet = sheetsService.spreadsheets().get(spreadsheetId).execute()
+//            spreadsheet.sheets.filter { regextoFind.matches(it.properties.title) }.map{ it.properties.title }
+//        } catch (e: Exception) {
+//            Log.e(TAG, "No se pudo obtener el Nombre de la hoja $regextoFind e: $e")
+//            emptyList()
+//        }
     }
     private fun createWorkSheetNew(spreadsheetId: String,table: SheetTable){
         val targetSheetName = table.sheetName
@@ -407,12 +423,15 @@ class DataRawRondin(
             val allRows = mutableListOf<List<Any>>()
 
             // 1. Obtener Vehículos de RESIDENTES
-            val stateResidentes = tableStates[SheetTable.RESIDENTES_UNIDAD]
+            val stateALLResidentes = tableStates[SheetTable.ALL_RESIDENTES_UNIDAD]
 
-            // 2. Aseguramos que la RAM tenga datos (Carga desde RAM -> Disco -> Red)
-            if (stateResidentes?.cache == null) runBlocking { getResidentes() }
-            stateResidentes?.cache?.forEach { row ->
+            // Aseguramos que la RAM tenga datos (Carga desde RAM -> Disco -> Red) de este coto
+            if (stateALLResidentes?.cache == null) runBlocking { getAllPosibleResidentes() }
+
+            // Buscar en el registro de todos los cotos
+            stateALLResidentes?.cache?.forEach { row ->
                 //tipo == automovil
+                //Filtrar solo los AUTOMOVILES
                 if (row[4].toString().startsWith("auto",true)){
                     val placa: String? = row.firstNotNullOfOrNull { it.toString().extraerPlaca() }
                     if (placa != null ){
@@ -423,35 +442,20 @@ class DataRawRondin(
                 }
             }
 
-//            val residentsId = mySettings.getString("PARKING_SPREADSHEET_ID", "")!!
-//            val residentsSheet = SheetTable.VEHICULOS.sheetName //mySettings.getString("WS_AUTOS_REGISTRADOS", "AutosRegistrados")!!
-//
-//            if (residentsId.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
-//
-//            //try {
-//                val response = sheetsService.spreadsheets().values()
-//                    .get(residentsId, "$residentsSheet!A:C") // placa, calle, numero
-//                    .execute()
-//                response.getValues().drop(1)?.let { allRows.addAll(it) }
-//            //} catch (e: Exception) {
-//            //    Log.e(TAG, "Error leyendo Residentes: ${e.message}")
-//            //}
 
             // 2. Obtener Vehículos VISITANTES (Hojas: ingreso y salida)
-            val visitorsId = mySettings.getString("REGISTRO_CARROS_SPREADSHEET_ID", "")
+            val visitorsId = mySettings.getString(SheetTable.BITACORA_ACCESOS.worksheet_id, "")
             if (!visitorsId.isNullOrEmpty()) {
                 val visitorSheets = listOf("ingreso", "salida")
                 for (sheetName in visitorSheets) {
-                    //try {
+
                     val response = sheetsService.spreadsheets().values()
                         .get(visitorsId, "$sheetName!C:E") // placa, calle, numero
                         .execute()
-                    // drop(1) para omitir los encabezados de la tabla de visitantes
+
                     val rows = response.getValues()?.drop(1) ?: emptyList()
                     allRows.addAll(rows)
-                    //} catch (e: Exception) {
-                    //    Log.e(TAG, "Error leyendo Visitantes ($sheetName): ${e.message}")
-                    //}
+
                 }
             }
 
@@ -462,7 +466,7 @@ class DataRawRondin(
     fun getTagsCache(forceLoad: Boolean = false): List<List<Any>> = runBlocking {
         getSmartCache(SheetTable.TAGS,forceLoad) {
             val allParsedTags = mutableListOf<List<Any>>()
-            val spreadsheetId = mySettings.getString("PARKING_SPREADSHEET_ID", "")!!
+            val spreadsheetId = mySettings.getString(SheetTable.TAGS.worksheet_id, "")!!
             val nameWS = SheetTable.TAGS.sheetName //mySettings.getString("WS_AUTOS_REGISTRADOS", "AutosRegistrados")!!
             if (spreadsheetId.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
 
@@ -686,7 +690,7 @@ class DataRawRondin(
     //RESIDENTES
     fun getResidentes(forceLoad: Boolean = false): List<List<Any>> = runBlocking {
         getSmartCache(SheetTable.RESIDENTES_UNIDAD, forceLoad) {
-            val spreadsheetId = mySettings.getString("PARKING_SPREADSHEET_ID", "")
+            val spreadsheetId = mySettings.getString(SheetTable.RESIDENTES_UNIDAD.worksheet_id, "")
             if (spreadsheetId.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
             val nameWS = SheetTable.RESIDENTES_UNIDAD.sheetName
 
@@ -695,6 +699,28 @@ class DataRawRondin(
                 .execute()
 
             response.getValues()?.drop(1) ?: emptyList()
+        }
+    }
+    fun getAllPosibleResidentes(forceLoad: Boolean = false):List<List<Any>> = runBlocking{
+        getSmartCache(SheetTable.ALL_RESIDENTES_UNIDAD, forceLoad) {
+            val allRows = mutableListOf<List<Any>>()
+            val spreadsheetIds = mySettings.getSimpleList(SheetTable.ALL_RESIDENTES_UNIDAD.worksheet_id)
+            for (spreadsheetId in spreadsheetIds){
+                if (spreadsheetId.isEmpty()) continue
+                val sheetNameResidentes = getSheetsNameRegex(spreadsheetId, Regex("${SheetTable.ALL_RESIDENTES_UNIDAD.sheetName}.*",
+                    RegexOption.IGNORE_CASE))
+
+                sheetNameResidentes.forEach { sheetResidente ->
+                    val rowsRes = sheetsService.spreadsheets().values()
+                            .get(
+                                spreadsheetId,
+                                "$sheetResidente!${SheetTable.ALL_RESIDENTES_UNIDAD.range}"
+                            ) // all residente
+                            .execute().getValues()?.drop(1) ?: emptyList()
+                    allRows.addAll(rowsRes)
+                }
+            }
+            allRows
         }
     }
     fun updateResidentes( rowData:List<String>): Boolean{
@@ -746,7 +772,7 @@ class DataRawRondin(
             val allPermisos = mutableListOf<List<Any>>()
 
             // Obtenemos la lista de IDs de Spreadsheets desde MySettings
-            val spreadsheetIds = mySettings.getSimpleList("PERMISOS_SPREADSHEET_ID") ?: emptyList<String>()
+            val spreadsheetIds = mySettings.getSimpleList(SheetTable.PERMISOS.worksheet_id) ?: emptyList<String>()
             if (spreadsheetIds.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
 
             for (id in spreadsheetIds) {
@@ -895,7 +921,7 @@ class DataRawRondin(
         // Usamos el SmartCache genérico con el Enum correspondiente
         getSmartCache(SheetTable.DIRECCIONES,forceLoad) {
             val allDirections = mutableListOf<List<Any>>()
-            val spreadsheetId = mySettings.getString("PARKING_SPREADSHEET_ID", "")!!
+            val spreadsheetId = mySettings.getString(SheetTable.DIRECCIONES.worksheet_id, "")!!
             if (spreadsheetId.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
 
             // Intentamos obtener el nombre de la hoja desde settings o usamos el default
@@ -941,13 +967,158 @@ class DataRawRondin(
         }
         return result as List<List<Any>>
     }
+    //Domiclios calle y numero
+    private fun ordenarDomicilios(domicilio: String): List<Comparable<*>> {
+        val domicilioLimpio = domicilio.trim()
+        val regex = Regex("(\\d+|\\D+)")
+        val matches = regex.findAll(domicilioLimpio).map { it.value }
+
+        return matches.map { parte ->
+            // Si es un número, lo convierte a Int para que se ordene numéricamente, si no, se queda como String
+            parte.toIntOrNull() ?: parte
+        }.toList()
+    }
+    private val domicilioComparator = Comparator<String> { a, b ->
+        val listaA = ordenarDomicilios(a)
+        val listaB = ordenarDomicilios(b)
+
+        val minSize = minOf(listaA.size, listaB.size)
+        for (i in 0 until minSize) {
+            val elemA = listaA[i]
+            val elemB = listaB[i]
+
+            if (elemA::class != elemB::class) {
+                // Si no son del mismo tipo, comparamos sus representaciones en String
+                val comp = elemA.toString().compareTo(elemB.toString())
+                if (comp != 0) return@Comparator comp
+            } else {
+                val comp = when (elemA) {
+                    is Int -> elemA.compareTo(elemB as Int)
+                    else -> (elemA as String).compareTo(elemB as String)
+                }
+                if (comp != 0) return@Comparator comp
+            }
+        }
+        listaA.size.compareTo(listaB.size)
+    }
+    private fun prioridadCalles(calle: String): Int {
+        return when (calle.lowercase()) {
+            "administracion" -> 0 // Máxima prioridad
+            "casaclub" -> 2       // Mínima prioridad (va al final)
+            else -> 1             // Orden alfabético normal para las demás
+        }
+    }
+    private var cacheDomiciliosDict: Map<String, List<String>>? = null
+    private var cacheFullDomiciliosDict: Map<String, List<String>>? = null
+    private var cacheFullDomiciliosDictTimestamp: Long = 0L
+    fun getDomiciliosDict(forceLoad: Boolean = false): Map<String, List<String>> {
+        if (! isNetworkAvailable()) {
+            return cacheDomiciliosDict ?: emptyMap()
+        }
+
+        if (cacheDomiciliosDict == null || forceLoad) {
+            val rows = getDomiciliosUbicacion(forceLoad)
+            val indexedDict = mutableMapOf<String, MutableList<String>>()
+
+            for (row in rows) {
+                if (row.size >= 2) {
+                    val cClean = row[0].toString().trim()
+                    val nClean = row[1].toString().trim()
+
+                    if (!indexedDict.containsKey(cClean)) {
+                        indexedDict[cClean] = mutableListOf()
+                    }
+                    indexedDict[cClean]?.add(nClean)
+                }
+            }
+            cacheDomiciliosDict = indexedDict
+        }
+        return cacheDomiciliosDict ?: emptyMap()
+    }
+    fun getDomiciliosFullDict(forceLoad: Boolean = false): Map<String, List<String>> = runBlocking {
+        val isConnected = isNetworkAvailable()
+        if (!isConnected) {
+            return@runBlocking cacheFullDomiciliosDict ?: emptyMap()
+        }
+
+        val lastTimestamp = cacheFullDomiciliosDictTimestamp
+        val now = System.currentTimeMillis()
+
+        if (cacheFullDomiciliosDict == null || forceLoad || (now - lastTimestamp > CACHE_DURATION_MS)) {
+            val postfixLocal = mySettings.getString("POSTFIX_SHEETNAME", "") ?: ""
+            val sheetName = SheetTable.DIRECCIONES.sheetName.replace(postfixLocal, "")
+            val indexedDict = mutableMapOf<String, MutableList<String>>()
+
+            val spreadIds = mySettings.getSimpleList(SheetTable.DIRECCIONES.worksheet_id) ?: emptyList()
+            if (spreadIds.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
+
+            for (idx in spreadIds) {
+                if (idx.isEmpty()) continue
+                try {
+                    // Eliminar el postfix de la búsqueda con Regex
+                    val sheetNameRegex = "${sheetName}.*".toRegex()
+                    val sheetNames = getSheetsNameRegex(idx, sheetNameRegex) // Asume que retorna List<String>
+
+                    for (sn in sheetNames) {
+                        try {
+                            withContext(Dispatchers.IO) {
+                                // Leemos el rango de la hoja actual
+                                val response = sheetsService.spreadsheets().values()
+                                    .get(idx, "$sn!${SheetTable.DIRECCIONES.range}")
+                                    .execute()
+
+                                val rows = response.getValues() ?: emptyList()
+                                if (rows.size > 1) {
+                                    // .drop(1) para omitir el encabezado
+                                    for (row in rows.drop(1)) {
+                                        if (row.size >= 2) {
+                                            val cClean = row[0].toString().trim()
+                                            val nClean = row[1].toString().trim()
+
+                                            if (!indexedDict.containsKey(cClean)) {
+                                                indexedDict[cClean] = mutableListOf()
+                                            }
+                                            indexedDict[cClean]?.add(nClean)
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            println("Error ocurred while fetching direcciones from spreadsheet $idx, $sn: ${e.message}")
+                        }
+                    }
+                } catch (e: Exception) {
+                    println("Error con el spreadsheet $idx: ${e.message}")
+                }
+            }
+
+            // ORDENAMOS los números internos usando el comparador natural
+            for ((calle, numeros) in indexedDict) {
+                numeros.sortWith(domicilioComparator)
+            }
+
+            // ORDENAMOS las llaves del mapa por prioridad y luego alfabéticamente
+            val llavesOrdenadas = indexedDict.keys.sortedWith(compareBy<String> { prioridadCalles(it) }.thenBy { it })
+
+            // Reconstruimos el mapa ordenado (LinkedHashMap preserva el orden de inserción)
+            val dictFinal = linkedMapOf<String, List<String>>()
+            for (calle in llavesOrdenadas) {
+                dictFinal[calle] = indexedDict[calle] ?: emptyList()
+            }
+
+            cacheFullDomiciliosDict = dictFinal
+            cacheFullDomiciliosDictTimestamp = now
+        }
+
+        return@runBlocking cacheFullDomiciliosDict ?: emptyMap()
+    }
 
     //Por Revisar registros
     fun getPorRevisar(forceLoad: Boolean = false): List<List<Any>> = runBlocking {
         // Usamos el SmartCache genérico con el Enum POR_REVISAR
         getSmartCache(SheetTable.POR_REVISAR,forceLoad) {
             val allPending = mutableListOf<List<Any>>()
-            val spreadsheetId = mySettings.getString("PARKING_SPREADSHEET_ID", "")!!
+            val spreadsheetId = mySettings.getString(SheetTable.POR_REVISAR.worksheet_id, "")!!
             if (spreadsheetId.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
 
             // Intentamos obtener el nombre de la hoja (o usamos el default "PorRevisar")
@@ -1055,7 +1226,7 @@ class DataRawRondin(
         // Usamos el SmartCache genérico con el Enum correspondiente
         getSmartCache(SheetTable.PARKING_SLOTS,forceLoad) {
             val allSlots = mutableListOf<List<Any>>()
-            val spreadsheetId = mySettings.getString("PARKING_SPREADSHEET_ID", "")
+            val spreadsheetId = mySettings.getString(SheetTable.PARKING_SLOTS.worksheet_id, "")
             if (spreadsheetId.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
 
             // Buscamos el nombre de la hoja en settings o usamos el default "ParkingSlots"
@@ -1104,7 +1275,7 @@ class DataRawRondin(
         // Usamos el SmartCache genérico con el Enum correspondiente
         getSmartCache(SheetTable.AUTOS_EVENTOS,forceLoad) {
             val allEvents = mutableListOf<List<Any>>()
-            val spreadsheetId = mySettings.getString("PARKING_SPREADSHEET_ID", "")!!
+            val spreadsheetId = mySettings.getString(SheetTable.AUTOS_EVENTOS.worksheet_id, "")!!
             if (spreadsheetId.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
 
             // Buscamos el nombre de la hoja en settings o usamos el default
@@ -1202,7 +1373,7 @@ class DataRawRondin(
         // Usamos el SmartCache genérico con el Enum correspondiente
         getSmartCache(SheetTable.INCIDENCIAS_CONFIG,forceLoad) {
             val allRows = mutableListOf<List<Any>>()
-            val spreadsheetId = mySettings.getString("PARKING_SPREADSHEET_ID", "")
+            val spreadsheetId = mySettings.getString(SheetTable.INCIDENCIAS_CONFIG.worksheet_id, "")
             if (spreadsheetId.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
 
             // Buscamos el nombre de la hoja en settings o usamos el default
@@ -1229,7 +1400,7 @@ class DataRawRondin(
         // Usamos el SmartCache genérico con el Enum correspondiente
         getSmartCache(SheetTable.INCIDENCIAS,forceLoad) {
             val allRows = mutableListOf<List<Any>>()
-            val spreadsheetId = mySettings.getString("PARKING_SPREADSHEET_ID", "")
+            val spreadsheetId = mySettings.getString(SheetTable.INCIDENCIAS.worksheet_id, "")
             if (spreadsheetId.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
 
             // Buscamos el nombre de la hoja en settings o usamos el default
@@ -1292,7 +1463,7 @@ class DataRawRondin(
         // Usamos el SmartCache genérico con el Enum correspondiente
         getSmartCache(SheetTable.DOMICILIO_WARNINGS,forceLoad) {
             val allRows = mutableListOf<List<Any>>()
-            val spreadsheetId = mySettings.getString("PARKING_SPREADSHEET_ID", "")
+            val spreadsheetId = mySettings.getString(SheetTable.DOMICILIO_WARNINGS.worksheet_id, "")
             if (spreadsheetId.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
 
             // Buscamos el nombre de la hoja en settings o usamos el default
@@ -1396,7 +1567,7 @@ class DataRawRondin(
         // FechaCreado, FechaIngreso, Placa, Calle, Numero, Tipo, Conductor, Desc, Foto1, Foto2, qr_data, fechaSalida,status
         getSmartCache(SheetTable.BITACORA_ACCESOS,forceLoad) {
             val allRows = mutableListOf<List<Any>>()
-            val spreadsheetId = mySettings.getString("REGISTRO_CARROS_SPREADSHEET_ID", "")
+            val spreadsheetId = mySettings.getString(SheetTable.BITACORA_ACCESOS.worksheet_id, "")
             if (spreadsheetId.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
 
             // Buscamos el nombre de la hoja en settings o usamos el default
@@ -1463,7 +1634,12 @@ class DataRawRondin(
         val date24HoursAgo = LocalDateTime.now().minusHours(24)
         return rows.filter {it[2].toString() == "PEATONAL" && parseLenientDateTime(it[1].toString()) >= date24HoursAgo }
     }
-    fun actulizarSalidaAccesos(placaTarget:String, fechaSalidaNueva: String): Boolean {
+    fun getRegistroVehicularlLast7Days(): List<List<Any>>{
+        val rows = getBitacoraAccesos()
+        val date7DaysAgo = LocalDateTime.now().minusDays(7)// .minusHours(24)
+        return rows.filter {it[2].toString() != "PEATONAL" && parseLenientDateTime(it[1].toString()) >= date7DaysAgo }
+    }
+    fun actulizarSalidaAccesos(placaTarget:String, fechaSalidaNueva: String, stringStatus:String): Boolean {
         if (placaTarget.isBlank()) return false
 
         val table = SheetTable.BITACORA_ACCESOS
@@ -1492,7 +1668,7 @@ class DataRawRondin(
             //Vencer
             if (indexFind >= 0) {
                 rowData[11] = fechaSalidaNueva
-                rowData[12] = "salida CORREGIDA POR APP"
+                rowData[12] = stringStatus
                 currentCache[indexFind] = rowData
                 state.cache = currentCache
 
@@ -1510,7 +1686,7 @@ class DataRawRondin(
         return true
 
     }
-    fun actulizarSalidaAccesosPeatonal(conductor:String, calle: String, numero: String, fechaSalidaNueva: String): Boolean{
+    fun actulizarSalidaAccesosPeatonal(conductor:String, calle: String, numero: String, fechaSalidaNueva: String, stringStatus:String): Boolean{
         if (conductor.isBlank() || calle.isBlank() || numero.isBlank() ) return false
 
         val table = SheetTable.BITACORA_ACCESOS
@@ -1542,7 +1718,7 @@ class DataRawRondin(
             //Vencer
             if (indexFind >= 0) {
                 rowData[11] = fechaSalidaNueva
-                rowData[12] = "salida CORREGIDA POR APP"
+                rowData[12] = stringStatus
                 currentCache[indexFind] = rowData
                 state.cache = currentCache
 
@@ -1569,7 +1745,7 @@ class DataRawRondin(
             val allRows = mutableListOf<List<Any>>()
 
             // Obtenemos la lista de IDs de Spreadsheets desde MySettings
-            val spreadsheetIds = mySettings.getSimpleList("WHATSAPP_SPREADSHEET_ID") ?: emptyList<String>()
+            val spreadsheetIds = mySettings.getSimpleList(SheetTable.TELEFONOS_WHATSAPP.worksheet_id) ?: emptyList<String>()
             if (spreadsheetIds.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
 
             for (id in spreadsheetIds) {
@@ -1621,7 +1797,7 @@ class DataRawRondin(
             val allRows = mutableListOf<List<Any>>()
 
             // Obtenemos la lista de IDs de Spreadsheets desde MySettings
-            val spreadsheetIds = mySettings.getSimpleList("SALDOS_SPREADSHEET_ID") ?: emptyList<String>()
+            val spreadsheetIds = mySettings.getSimpleList(SheetTable.DOMICILIOS_MOROSOS.worksheet_id) ?: emptyList<String>()
             if (spreadsheetIds.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
 
             for (id in spreadsheetIds) {
@@ -1630,9 +1806,11 @@ class DataRawRondin(
                     createWorkSheetNew(id,SheetTable.DOMICILIOS_MOROSOS)
 
                 // Consultamos el rango A:N (desde Marca temporal hasta Procesado por ROBOT)
-                val response = sheetsService.spreadsheets().values()
-                    .get(id, "${sheetName}!${range}")
-                    .execute()
+                val response = withContext(Dispatchers.IO) {
+                    sheetsService.spreadsheets().values()
+                        .get(id, "${sheetName}!${range}")
+                        .execute()
+                }
 
                 // Omitimos la primera fila (encabezados) de cada hoja
                 val rows = response.getValues()?.drop(1) ?: emptyList()
@@ -1673,7 +1851,7 @@ class DataRawRondin(
             val allRows = mutableListOf<List<Any>>()
 
             // Obtenemos la lista de IDs de Spreadsheets desde MySettings
-            val spreadsheetIds = mySettings.getString("REGISTRO_CARROS_SPREADSHEET_ID","") //?: emptyList<String>()
+            val spreadsheetIds = mySettings.getString(SheetTable.EXCEPCIONES.worksheet_id,"") //?: emptyList<String>()
             if (spreadsheetIds.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
 
             //for (id in spreadsheetIds) {
@@ -1763,7 +1941,7 @@ class DataRawRondin(
             val allRows = mutableListOf<List<Any>>()
 
             // Obtenemos la lista de IDs de Spreadsheets desde MySettings
-            val spreadsheetIds = mySettings.getString("REGISTRO_CARROS_SPREADSHEET_ID","") //?: emptyList<String>()
+            val spreadsheetIds = mySettings.getString(SheetTable.QRS.worksheet_id,"") //?: emptyList<String>()
             if (spreadsheetIds.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
 
             //for (id in spreadsheetIds) {
@@ -1849,7 +2027,7 @@ class DataRawRondin(
 
 
             // Obtenemos la lista de IDs de Spreadsheets desde MySettings
-            val spreadsheetIds = mySettings.getString("REGISTRO_CARROS_SPREADSHEET_ID","") //?: emptyList<String>()
+            val spreadsheetIds = mySettings.getString(SheetTable.TIPO_ACCESOS.worksheet_id,"") //?: emptyList<String>()
             if (spreadsheetIds.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
 
             //for (id in spreadsheetIds) {

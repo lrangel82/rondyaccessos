@@ -24,7 +24,7 @@ class RondyNetworkManager(
     private val mySettings: MySettings
 ) {
     private val selectorManager = SelectorManager(Dispatchers.IO)
-    private val PORT = 45001
+    private val PORT = 54321
 
     // Lista de nodos conocidos (Punto 1 y 6)
     private val _nodosActivos = MutableStateFlow<Set<RondyNodo>>(emptySet())
@@ -136,59 +136,119 @@ class RondyNetworkManager(
         logToConsole("RondyNetwork", "Finalizado escaneo de companieros en red: ${prefix}0/24")
     }
 
+    //#########################################
+    //##### ProcesarLineaJSon COMMANDOS #######
+    private suspend fun procesarCOMMANDOS(linea: String,_output: io.ktor.utils.io.ByteWriteChannel? = null) {
+        val msg = Json.decodeFromString<SocketMessage>(linea)
+        when(msg.type) {
+            MessageType.ANUNCIO_CONEXION -> {
+                // PUNTO 4: Alguien nuevo se conectó, le mandamos nuestra lista
+                registrarNodo(msg.senderIp, msg.senderRole)
+                val respuesta = SocketMessage(
+                    type = MessageType.ACTUALIZACION_LISTA,
+                    senderIp = getMiIp(),
+                    senderRole = miRol,
+                    listaNodos = _nodosActivos.value.toList()
+                )
+                if (_output != null)
+                    _output.writeStringUtf8(Json.encodeToString(SocketMessage.serializer(),respuesta) + "\n")
+                //output.flush()
+            }
+            MessageType.REGISTRO_INGRESO -> {
+                // PUNTO 3: Guardar en cache externa
+                msg.registro?.let { bitacoraExterna.add(it) }
+            }
+            MessageType.ACTUALIZACION_LISTA -> {
+                // PUNTO 5 y 6: Sincronizar nodos
+                logToConsole("RondyNetwork", "Recibido ACTUALIZACION_LISTA ${msg.senderRole}: ${msg.listaNodos}")
+                //registrarNodo(remoteAddress, msg.senderRole)
+                msg.listaNodos?.forEach { registrarNodo(it.ip, it.role) }
+            }
+            MessageType.AVISO_ESPECIFICO -> {
+                // COMANDOS ENTRE MODULOS
+                logToConsole("RondyNetwork", "Recibido aviso de ${msg.senderIp}: ${msg.mensajeExtra}")
+                when (msg.mensajeExtra) {
+                    "SOLICITAR_AUTORIZACION" -> {
+                        //Inicializa con vacio
+                        RESPUESTA_SOLICITAR_AUTORIZACION.set("")
+                        //Aqui se debe hacer algo para decirle a caseta o preguntar al activity la respeusta
+                        // y despues enviar la respuesta
+                    }
+                    "RESPUESTA_AUTORIZACION" -> {
+                        RESPUESTA_SOLICITAR_AUTORIZACION.compareAndSet("",msg.respuestaCommando)
+                    }
+                }
+            }
+            else -> {}
+        }
+    }
+    //#########################################
+
     //##### ENTRADAS AL SOCKET
-    private suspend fun procesarSocketEntrante(socket: Socket) {
-        val input = socket.openReadChannel()
-        val output = socket.openWriteChannel(autoFlush = true)
+    private suspend fun procesarSocketEntrante(socket: Socket,
+                                               _input: io.ktor.utils.io.ByteReadChannel? = null,
+                                               _output: io.ktor.utils.io.ByteWriteChannel? = null) {
+        val input = _input ?: socket.openReadChannel()
+        val output = _output ?: socket.openWriteChannel(autoFlush = false)
         val remoteAddress = socket.remoteAddress.toString().substringAfter("/").substringBefore(":")
         try {
-            val line = withTimeoutOrNull(4000) {
+            logToConsole("RondyNetwork", "⏳ Suspendiendo corrutina, esperando bytes reales desde Python...")
+
+            val line = withTimeoutOrNull(8000) {
                 input.readUTF8Line()
             }
             logToConsole("RondyNetwork", "\uD83D\uDCF2 Recibiendo de $remoteAddress: LECTURA SOCKET: $line")
             //val line = input.readUTF8Line() ?: return
-            if (line.isNullOrEmpty()) return
+            if (line.isNullOrEmpty()) {
+                logToConsole("RondyNetwork", "⚠️ Se recibió un string vacío o nulo (Timeout de lectura)")
+                return
+            }
             val msg = Json.decodeFromString<SocketMessage>(line)
 
-            when(msg.type) {
-                MessageType.ANUNCIO_CONEXION -> {
-                    // PUNTO 4: Alguien nuevo se conectó, le mandamos nuestra lista
-                    registrarNodo(msg.senderIp, msg.senderRole)
-                    val respuesta = SocketMessage(
-                        type = MessageType.ACTUALIZACION_LISTA,
-                        senderIp = getMiIp(),
-                        senderRole = miRol,
-                        listaNodos = _nodosActivos.value.toList()
-                    )
-                    output.writeStringUtf8(Json.encodeToString(SocketMessage.serializer(),respuesta) + "\n")
-                }
-                MessageType.REGISTRO_INGRESO -> {
-                    // PUNTO 3: Guardar en cache externa
-                    msg.registro?.let { bitacoraExterna.add(it) }
-                }
-                MessageType.ACTUALIZACION_LISTA -> {
-                    // PUNTO 5 y 6: Sincronizar nodos
-                    logToConsole("RondyNetwork", "Recibido ACTUALIZACION_LISTA ${msg.senderRole}: ${msg.listaNodos}")
-                    registrarNodo(remoteAddress, msg.senderRole)
-                    msg.listaNodos?.forEach { registrarNodo(it.ip, it.role) }
-                }
-                MessageType.AVISO_ESPECIFICO -> {
-                    // COMANDOS ENTRE MODULOS
-                    logToConsole("RondyNetwork", "Recibido aviso de ${msg.senderIp}: ${msg.mensajeExtra}")
-                    when (msg.mensajeExtra) {
-                        "SOLICITAR_AUTORIZACION" -> {
-                            //Inicializa con vacio
-                            RESPUESTA_SOLICITAR_AUTORIZACION.set("")
-                            //Aqui se debe hacer algo para decirle a caseta o preguntar al activity la respeusta
-                            // y despues enviar la respuesta
-                        }
-                        "RESPUESTA_AUTORIZACION" -> {
-                            RESPUESTA_SOLICITAR_AUTORIZACION.compareAndSet("",msg.respuestaCommando)
-                        }
-                    }
-                }
-                else -> {}
-            }
+            procesarCOMMANDOS(line,output)
+
+//            when(msg.type) {
+//                MessageType.ANUNCIO_CONEXION -> {
+//                    // PUNTO 4: Alguien nuevo se conectó, le mandamos nuestra lista
+//                    registrarNodo(msg.senderIp, msg.senderRole)
+//                    val respuesta = SocketMessage(
+//                        type = MessageType.ACTUALIZACION_LISTA,
+//                        senderIp = getMiIp(),
+//                        senderRole = miRol,
+//                        listaNodos = _nodosActivos.value.toList()
+//                    )
+//                    output.writeStringUtf8(Json.encodeToString(SocketMessage.serializer(),respuesta) + "\n")
+//                    //output.flush()
+//                }
+//                MessageType.REGISTRO_INGRESO -> {
+//                    // PUNTO 3: Guardar en cache externa
+//                    msg.registro?.let { bitacoraExterna.add(it) }
+//                }
+//                MessageType.ACTUALIZACION_LISTA -> {
+//                    // PUNTO 5 y 6: Sincronizar nodos
+//                    logToConsole("RondyNetwork", "Recibido ACTUALIZACION_LISTA ${msg.senderRole}: ${msg.listaNodos}")
+//                    registrarNodo(remoteAddress, msg.senderRole)
+//                    msg.listaNodos?.forEach { registrarNodo(it.ip, it.role) }
+//                }
+//                MessageType.AVISO_ESPECIFICO -> {
+//                    // COMANDOS ENTRE MODULOS
+//                    logToConsole("RondyNetwork", "Recibido aviso de ${msg.senderIp}: ${msg.mensajeExtra}")
+//                    when (msg.mensajeExtra) {
+//                        "SOLICITAR_AUTORIZACION" -> {
+//                            //Inicializa con vacio
+//                            RESPUESTA_SOLICITAR_AUTORIZACION.set("")
+//                            //Aqui se debe hacer algo para decirle a caseta o preguntar al activity la respeusta
+//                            // y despues enviar la respuesta
+//                        }
+//                        "RESPUESTA_AUTORIZACION" -> {
+//                            RESPUESTA_SOLICITAR_AUTORIZACION.compareAndSet("",msg.respuestaCommando)
+//                        }
+//                    }
+//                }
+//                else -> {}
+//            }
+        } catch (e: Exception) {
+            logToConsole("RondyNetwork", "Error procesando datos entrantes: ${e.message}")
         } finally {
             socket.close()
         }
@@ -248,10 +308,16 @@ class RondyNetworkManager(
     // Función genérica para enviar mensajes TCP (Punto 2 y 8)
     private suspend fun enviarMensaje( ip: String,type: MessageType, registro: AccesoBitacora? = null, mensajeExtra: String? = null, printError: Boolean? = true) {
         withContext(Dispatchers.IO) {
+            var socket: io.ktor.network.sockets.Socket? = null
             try {
-                withTimeout(2000) {
-                    val socket = aSocket(selectorManager).tcp().connect(ip, PORT)
-                    val output = socket.openWriteChannel(autoFlush = true)
+                //withTimeout(5000) { // Aumentamos un poco a 3 segundos para el barrido masivo
+                    socket = aSocket(selectorManager).tcp().connect(ip, PORT){
+                        keepAlive = true
+                        socketTimeout = 10000
+                    }
+                    val input = socket.openReadChannel()
+                    val output = socket.openWriteChannel(autoFlush = true) // Cambiar a false para controlar el flujo
+
                     val msg = SocketMessage(
                         type = type,
                         senderIp = getMiIp(),
@@ -259,21 +325,34 @@ class RondyNetworkManager(
                         registro = registro,
                         mensajeExtra = mensajeExtra.toString()
                     )
-                    output.writeStringUtf8(
-                        Json.encodeToString(
-                            SocketMessage.serializer(),
-                            msg
-                        ) + "\n"
-                    )
-                    logToConsole("RondyNetwork", "\uD83D\uDCE4 Enviado ${type} a ${ip} data....")
-                    //procesarSocketEntrante(socket)
-                    socket.close()
-                }
+
+                    // Enviar mensaje con salto de línea
+                    logToConsole("RondyNetwork", "Preparando mensaje ${type} para ${ip}...")
+                    output.writeStringUtf8(Json.encodeToString(SocketMessage.serializer(), msg) + "\n")
+                    //output.flush() // Forzar el envío real de los bytes a la red AHORA
+                    logToConsole("RondyNetwork", "📤 Enviado ${type} a ${ip} esperando respuesta...")
+                    //delay(4000)
+                    val respuestaServidor = withTimeoutOrNull(6000) {
+                        input.readUTF8Line()
+                    }
+                    //logToConsole("RondyNetwork", "...4 segundos esepera ...")
+                    logToConsole("RondyNetwork", "📱 Respuesta final desde Python: $respuestaServidor")
+
+
+
+                // Procesar la respuesta del servidor antes de dejar morir la corrutina
+                    //procesarSocketEntrante(socket, input, output)
+                    procesarCOMMANDOS(respuestaServidor.toString())
+                //}
             } catch (e: Exception) {
-                if (printError == true) logToConsole(
-                    "RondyNetwork",
-                    "Error enviando $type a $ip: ${e.message}"
-                )
+                if (printError == true) {
+                    logToConsole("RondyNetwork", "Error enviando $type a $ip: ${e.message}")
+                }
+            } finally {
+                // Aseguramos el cierre formal y limpio del socket al terminar todo el proceso
+                try {
+                    socket?.close()
+                } catch (_: Exception) {}
             }
         }
     }

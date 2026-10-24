@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout
+    android:id="@+id/mainActivity"
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
@@ -7,6 +8,7 @@
     android:layout_height="match_parent"
     android:background="#0A0E14"
     android:padding="12dp"
+    android:layout_marginTop="?attr/actionBarSize"
     tools:context=".peatonal.IngresoPeatonalActivity">
 
 

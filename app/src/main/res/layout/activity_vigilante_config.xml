@@ -92,26 +92,113 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:visibility="gone">
-                    <EditText android:id="@+id/etUrlOpen" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="URL Apertura (http://...)" />
-                    <Button android:id="@+id/btnTestHttp" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Probar Pulsador HTTP" android:layout_marginTop="8dp"/>
+
+                    <EditText
+                        android:id="@+id/etUrlOpen"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="URL Apertura (http://...)" />
+
+                    <EditText
+                        android:id="@+id/etUrlClose"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="URL Cierre (http://...)" />
+
+                    <Button
+                        android:id="@+id/btnTestHttp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Probar Pulsador HTTP" />
                 </LinearLayout>
 
                 <!-- Campos Dahua -->
-                <LinearLayout
+                <GridLayout
                     android:id="@+id/layoutDahuaFields"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
+                    android:alignmentMode="alignMargins"
+                    android:columnCount="2"
+                    android:paddingHorizontal="10dp"
                     android:visibility="gone">
-                    <EditText android:id="@+id/etDahuaIp" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="IP Dahua (192.168.x.x)" />
-                    <EditText android:id="@+id/etDahuaUser" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Usuario" />
-                    <EditText android:id="@+id/etDahuaPass" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Contraseña" android:inputType="textPassword" />
 
-                    <Button android:id="@+id/btnDahuaConnect" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Leer Puertas Disponibles" />
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="IP:"
+                        android:textStyle="italic" />
 
-                    <Spinner android:id="@+id/spDahuaDoors" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:visibility="gone"/>
-                    <Button android:id="@+id/btnTestDahua" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Probar Apertura Dahua" android:layout_marginTop="8dp" android:visibility="gone"/>
-                </LinearLayout>
+                    <EditText
+                        android:id="@+id/etDahuaIp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="IP Dahua (192.168.x.x)" />
+
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Usuario:"
+                        android:textStyle="italic" />
+
+                    <EditText
+                        android:id="@+id/etDahuaUser"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="Usuario" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Password:"
+                        android:textStyle="italic" />
+
+                    <EditText
+                        android:id="@+id/etDahuaPass"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="Contraseña"
+                        android:inputType="textPassword" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Puerta/Pluma:"
+                        android:textStyle="italic" />
+
+                    <TextView
+                        android:id="@+id/txtPuertaConfiguradaInfo"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="...."
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/btnDahuaConnect"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_columnSpan="2"
+                        android:text="Leer Puertas Disponibles" />
+
+                    <Spinner
+                        android:id="@+id/spDahuaDoors"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_columnSpan="2"
+                        android:layout_marginTop="8dp"
+                        android:visibility="gone" />
+
+                    <Button
+                        android:id="@+id/btnTestDahua"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_columnSpan="2"
+                        android:layout_marginTop="8dp"
+                        android:text="Probar Apertura Dahua"
+                        android:visibility="gone" />
+                </GridLayout>
+
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

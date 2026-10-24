@@ -80,7 +80,7 @@ class MySettings(private val context: Context) {
     private fun saveToPreferences(props: Properties) {
         saveInt("APP_ACTIVADA",1)
         with(sharedPreferences.edit()) {
-            val APP_NAME                        = if (props.getProperty("appname").length > 0 ) props.getProperty("appname") else "Version Gratuita"
+            val APP_NAME                        = props.getProperty("appname") ?: "Version Gratuita"
             val POSTFIX_SHEETNAME                = props.getProperty("postfix_sheetname") ?: ""
             val REGISTRO_CARROS_SPREADSHEET_ID  = props.getProperty("googlesheet_registro_carros_id") ?: ""
             val PARKING_SPREADSHEET_ID          = props.getProperty("googlesheet_parking_id") ?: ""
@@ -113,6 +113,11 @@ class MySettings(private val context: Context) {
             val TWILIO_TELEFONO                 = props.getProperty("tw_telefono")
             val RSTP_USER                       = props.getProperty("rstp_user")
             val RSTP_PASS                       = props.getProperty("rstp_pass")
+            val UCM_IP                          = props.getProperty("conmutador_ip")
+            val UCM_PUERTO_AMI                  = props.getProperty("conmutador_puerto_ami")
+            val UCM_USR_AMI                     = props.getProperty("conmutador_usr_ami")
+            val UCM_PSS_AMI                     = props.getProperty("conmutador_pss_ami")
+            val UCM_IVR_EXT                     = props.getProperty("conmutador_ivr_ext")
 
             putString("APP_NAME", APP_NAME)
             putString("POSTFIX_SHEETNAME", POSTFIX_SHEETNAME)
@@ -147,6 +152,12 @@ class MySettings(private val context: Context) {
             putString("TWILIO_TELEFONO", TWILIO_TELEFONO)
             putString("RSTP_USER",RSTP_USER)
             putString("RSTP_PASS",RSTP_PASS)
+            putString("UCM_IP",UCM_IP)
+            putString("UCM_PUERTO_AMI",UCM_PUERTO_AMI)
+            putString("UCM_USR_AMI",UCM_USR_AMI)
+            putString("UCM_PSS_AMI",UCM_PSS_AMI)
+            putString("UCM_IVR_EXT",UCM_IVR_EXT)
+
 
 
 
@@ -209,6 +220,11 @@ class MySettings(private val context: Context) {
             putString("TWILIO_TELEFONO", "")
             putString("RSTP_USER","")
             putString("RSTP_PASS","")
+            putString("UCM_IP","")
+            putString("UCM_PUERTO_AMI","")
+            putString("UCM_USR_AMI","")
+            putString("UCM_PSS_AMI","")
+            putString("UCM_IVR_EXT","")
 
             //CLEAN CACHE
             SheetTable.values().forEach{table ->
@@ -271,8 +287,11 @@ class MySettings(private val context: Context) {
     }
     fun getSimpleList(key: String): List<String>{
         val jsonString=sharedPreferences.getString(key, "[]") ?: "[]"
-        val objectList = Json.decodeFromString<List<String>>(jsonString)
-        return objectList
+        return try{
+            Json.decodeFromString<List<String>>(jsonString)
+        }catch (e:Exception) {
+            listOf<String>(jsonString)
+        }
     }
     fun getJson(key: String): Json{
         val jsonString=sharedPreferences.getString(key, "{}") ?: "{}"

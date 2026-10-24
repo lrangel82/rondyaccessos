@@ -77,6 +77,7 @@ class GeminiVoiceAssistant(
                 "Estructura de datos acumulados hasta ahora: $datosActualesJson. " +
                 "Analiza la entrada de voz, actualiza el JSON y genera la siguiente locución corta para el visitante. " +
                 "El orden para solicitar informacion faltante debe ser el siguiente siempre [motivo,calle,numero,nombre,placa]. " +
+                "Si esModoSalida = true el motivo no es requerido." +
                 "Si se tiene todos los datos indicar que se esta solicitando autorizacion"
 
         try {

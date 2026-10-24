@@ -110,7 +110,7 @@ class IngresoPeatonalActivity : AppCompatActivity() {
         }
     }
 
-    private var imageCapture: ImageCapture? = null
+    //private var imageCapture: ImageCapture? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -227,6 +227,10 @@ class IngresoPeatonalActivity : AppCompatActivity() {
     private fun observarCicloDelAsistente() {
         lifecycleScope.launch {
             viewModel.uiState.collectLatest { state ->
+                if (viewModel.esModoSalida)
+                    binding.mainActivity.setBackgroundColor(Color.parseColor("#0D1F0D")) // .parseColor("#0A0E14"))
+                else
+                    binding.mainActivity.setBackgroundColor(Color.parseColor("#0A0E14"))
                 val datosAcumulados = StringBuilder("Datos: ")
                 if (state.tipoInput.isNotEmpty()) datosAcumulados.append(" ${state.tipoInput} | ")
                 if (state.calleInput.isNotEmpty()) datosAcumulados.append("Calle: ${state.calleInput} | ")
@@ -284,7 +288,7 @@ class IngresoPeatonalActivity : AppCompatActivity() {
                                 state.listaDomiciliosFiltrados.map { it.getOrNull(0)?.toString() ?: "" }.distinct()
                             } else {
                                 // Si no hay filtro de Gemini previo, muestra todas las calles configuradas por defecto
-                                viewModel.todosLosDomiciliosCache.map { it.getOrNull(0)?.toString() ?: "" }.distinct()
+                                viewModel.todosLosDomiciliosCache.keys.toMutableList() //.map { it.getOrNull(0)?.toString() ?: "" }.distinct()
                             }
                             fuentesDeCalles.forEach { calle ->
                                 inyectarBotonEnMalla(calle) {
@@ -306,16 +310,39 @@ class IngresoPeatonalActivity : AppCompatActivity() {
                                     .filter { (it.getOrNull(0)?.toString() ?: "").equals(state.calleInput, ignoreCase = true) }
                                     .map { it.getOrNull(1)?.toString() ?: "" }
                             } else {
-                                viewModel.todosLosDomiciliosCache
-                                    .filter { (it.getOrNull(0)?.toString() ?: "").equals(state.calleInput, ignoreCase = true) }
-                                    .map { it.getOrNull(1)?.toString() ?: "" }
+                                viewModel.todosLosDomiciliosCache[state.calleInput]
+                                    //.filter { (it.getOrNull(0)?.toString() ?: "").equals(state.calleInput, ignoreCase = true) }
+                                    //.map { it.getOrNull(1)?.toString() ?: "" }
                             }
 
-                            fuentesDeNumeros.forEach { numero ->
+                            fuentesDeNumeros?.forEach { numero ->
                                 inyectarBotonEnMalla(numero) {
                                     controlarEstadoMicrofono(habilitar = false)
                                     viewModel.seleccionarNumero(numero)
                                 }
+                            }
+                        }
+
+                        CaptureStep.SELECCIONA_INGRESO_PREVIO -> {
+                            controlarEstadoMicrofono(habilitar = true)
+                            binding.lblInstruccionSeccion.text = "4. Seleccione su nombre:"
+                            binding.ScrollViewGridBotones.visibility = View.VISIBLE
+                            binding.txtInputManual.visibility = View.GONE
+                            binding.btnSiguientePasoManual.visibility = View.GONE
+
+                            val visitasDomicilio = viewModel.registroPeatonalLast24hr.filter {
+                                it[3].toString().equals(state.calleInput, ignoreCase = true) && it[4].toString().equals(state.numeroInput, ignoreCase = true)
+                            }.map { it[6].toString() }
+                            visitasDomicilio.forEach { nombre ->
+                                inyectarBotonEnMalla(nombre) {
+                                    controlarEstadoMicrofono(habilitar = false)
+                                    viewModel.guardarNombreYPasarAAutorizar(nombre)
+                                }
+                            }
+                            //OTRO
+                            inyectarBotonEnMalla("OTRO") {
+                                controlarEstadoMicrofono(habilitar = false)
+                                viewModel.guardarNombreYPasarAAutorizar("OTRO")
                             }
                         }
 
@@ -403,13 +430,13 @@ class IngresoPeatonalActivity : AppCompatActivity() {
                         binding.layoutVisualEstatusDerecho.setBackgroundColor(Color.parseColor("#4CAF50"))
                         binding.tvEstatusGrande.setTextColor(Color.BLACK)
                         binding.tvEstatusDetallePeque.setTextColor(Color.BLACK)
-                        binding.tvEstatusGrande.text = "AUTORIZADO"
+                        binding.tvEstatusGrande.text = state.resultadoMotivoPrincipal ?: "AUTORIZADO"
                     } else {
                         // High-contrast: Red Background with White Text
                         binding.layoutVisualEstatusDerecho.setBackgroundColor(Color.parseColor("#E53935"))
                         binding.tvEstatusGrande.setTextColor(Color.WHITE)
                         binding.tvEstatusDetallePeque.setTextColor(Color.WHITE)
-                        binding.tvEstatusGrande.text = "DENEGADO"
+                        binding.tvEstatusGrande.text = state.resultadoMotivoPrincipal ?: "DENEGADO"
                     }
                     binding.tvEstatusDetallePeque.text = state.resultadoMotivoDetalle
                 } else {
@@ -825,24 +852,6 @@ class IngresoPeatonalActivity : AppCompatActivity() {
     private fun conectarCasosDeUsoDeCamaraX() {
         val provider = cameraProvider ?: return
 
-        ///CODIGI PARA LOS ROSTROS
-//        val imageAnalysis = ImageAnalysis.Builder()
-//            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-//            .build()
-//
-//// Inicializar el intérprete cargando tu archivo mobile_facenet.tflite desde assets
-//        val faceNetInterpreter = Interpreter(loadModelFileFromAssets("facenet.tflite"))
-//
-//        imageAnalysis.setAnalyzer(cameraExecutor, MultiTaskImageAnalyzer(faceNetInterpreter))
-//
-//// Enlazar al ciclo de vida junto con tu Preview
-//        cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis)
-
-        ///////////////////////////////////////////////
-
-
-
-
         // 🚀 MEJORA 1: Forzar al Preview a usar una estrategia de escalado compatible con GPU de emuladores y físicos
         val previewUseCase = Preview.Builder()
             .setTargetAspectRatio(androidx.camera.core.AspectRatio.RATIO_4_3) // 4:3 es el más compatible universalmente
@@ -1005,11 +1014,6 @@ class IngresoPeatonalActivity : AppCompatActivity() {
                 )
             }
 
-//            // Asegurar que el cuadro delimitador esté estrictamente dentro de los límites del Bitmap
-//            val left = bounds.left.coerceIn(0, source.width)
-//            val top = bounds.top.coerceIn(0, source.height)
-//            val width = bounds.width().coerceIn(0, source.width - left)
-//            val height = bounds.height().coerceIn(0, source.height - top)
 
             // Validar que el área de recorte sea válida
             if (rectCrop.width() <= 0 || rectCrop.height() <= 0 ) return null

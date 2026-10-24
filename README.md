@@ -138,3 +138,66 @@ ESCENA 4: Características clave (Secuencia rápida)
       o	¡Descarga Rondy hoy!
       •	Voz en Off (Locutor): Los residentes son los únicos que autorizan quién entra. Seguridad avanzada, sin necesidad de infraestructura costosa. Protege lo que más importa. Cambia a Rondy.
 
+
+### Testo de conmutador
+```sh
+curl -v -k POST https://192.168.5.77:8443/api \
+  -b cookies.txt -c cookies.txt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "login",
+    "username": "cdrapi",
+    "secret": "cdrapiMesa2020"
+  }'
+  
+#echo "" > cookies.txt
+
+curl -H "Content-Type: application/json;charset=UTF-8" -H "Connection: close" -X POST \
+  -d '{
+    "request": {
+        "action": "challenge",
+        "user": "cdrapi",
+        "version": "1.0"
+    }
+  }' -k https://192.168.5.77:8443/api
+
+
+curl -k POST https://192.168.5.77:8089/api \
+  -b cookies.txt -c cookies.txt \
+  -F "action=uploadfile" \
+  -F "type=ivr_local" \
+  -F "filename=dinamico_autorizacion.mp3" \
+  -F "file=@/tmp/dinamico_autorizacion.mp3"
+  
+  
+curl -k POST https://192.168.5.77:8089/api \
+  -b cookies.txt -c cookies.txt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "updateIvr",
+    "ivr": "9999",
+    "prompt_welcome": "dinamico_autorizacion.wav"
+  }'
+  
+curl -k POST https://192.168.5.77:8089/api \
+  -b cookies.txt -c cookies.txt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "Originate",
+    "Channel": "SIP/extension/1079",
+    "Context": "from-internal",
+    "Exten": "9999",
+    "Priority": "1",
+    "Async": "true",
+    "ActionID": "ACCESO_TEST_12345",
+    "Timeout": "15000"
+  }'
+  
+ curl -k POST https://192.168.5.77:8089/api \
+  -b cookies.txt -c cookies.txt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "listCdr",
+    "actionID": "ACCESO_TEST_12345"
+  }'
+```

@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.Uri
 import android.provider.Settings
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -44,6 +45,7 @@ import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.Context
 import android.content.res.ColorStateList
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
 import androidx.activity.result.contract.ActivityResultContracts
@@ -56,9 +58,11 @@ import com.larangel.rondyaccesos.ui.VigilanteConfigActivity
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import android.speech.tts.UtteranceProgressListener
+import android.view.Gravity
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
@@ -70,7 +74,10 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.core.graphics.toColorInt
+import androidx.core.view.setMargins
 import com.larangel.rondyaccesos.utils.extraerPlaca
+import com.larangel.rondyaccesos.utils.isRunningOnEmulator
+import kotlinx.coroutines.isActive
 
 
 class IngresoVehicularActivity : AppCompatActivity() {
@@ -92,6 +99,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
     // LibVLC Native Player parameters
     private var libVLC: LibVLC? = null
     private var mediaPlayer: MediaPlayer? = null
+    private var surfaceInternaVLC: SurfaceView? = null
 
     // ML Kit Local OCR Engine instance
     private val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -120,6 +128,15 @@ class IngresoVehicularActivity : AppCompatActivity() {
     private val pixelCopyMutex = kotlinx.coroutines.sync.Mutex()
     private lateinit var lastBitmapReadedPlacas: Bitmap
 
+    private var bitmapDePruebaEmulador: Bitmap? = null
+    private val galleryLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let {
+            val inputStream = contentResolver.openInputStream(it)
+            bitmapDePruebaEmulador = BitmapFactory.decodeStream(inputStream)
+            Toast.makeText(this, "Imagen de prueba cargada", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityIngresoVehicularBinding.inflate(layoutInflater)
@@ -133,6 +150,8 @@ class IngresoVehicularActivity : AppCompatActivity() {
         inicializarContenedorVLC()
         configurarListenersDeFalla()
         observarCicloDeVidaDeCamaras()
+        // Start the asynchronous snapshot extraction engine loop for local OCR parsing
+        iniciarBucleProcesamientoOcrPlacas()
 
         //QR
         verificarPermisoDeCamaraAutomatizado()
@@ -146,6 +165,9 @@ class IngresoVehicularActivity : AppCompatActivity() {
 
         //Registrar ciclo
         observarCicloDelAsistente()
+
+        //Boton para debugear placas
+        crearBotonPruebaSeleccionarImagen()
     }
     override fun onStart() {
         super.onStart()
@@ -295,6 +317,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
 
     // --- MICROFONO ----
     private fun inicializarSpeechRecognizer() {
+        if (isRunningOnEmulator()) return //En el emulador apagar micro
         if (SpeechRecognizer.isRecognitionAvailable(this)) {
             speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
 
@@ -333,6 +356,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
                         else -> "ERROR $error"
                     }
                     actualizarIndicadorVisualVoz("PAUSA ($motivoError)", "#FF5252")
+                    Log.e("VozRondy", "Error microfono listening motivo: ${motivoError}")
 
                     if (error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT || error == SpeechRecognizer.ERROR_NO_MATCH) {
                         intentarReinicioSeguroDelMicrofono(delayMillis = 2000)
@@ -390,6 +414,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
             }
 
             override fun onError(utteranceId: String?) {
+                Log.e("VozRondy", "Error en geminiVoiceAssitance... encender de nuevo escucha utteranceId: ${utteranceId}")
                 lifecycleScope.launch(Dispatchers.Main) { encenderMicrofonoAsistente() }
             }
         })
@@ -423,7 +448,6 @@ class IngresoVehicularActivity : AppCompatActivity() {
         if (textoDictado.isNotEmpty()) {
             viewModel.procesarEntradaVozAsistenteGemini(textoDictado)
         }
-        //intentarReinicioSeguroDelMicrofono(delayMillis = 1200)
     }
     private fun actualizarIndicadorVisualVoz(estadoTexto: String, colorHex: String) {
         // Garantizar que la mutación corra en el hilo principal de la UI
@@ -445,6 +469,11 @@ class IngresoVehicularActivity : AppCompatActivity() {
     private fun observarCicloDelAsistente() {
         lifecycleScope.launch {
             viewModel.uiState.collectLatest { state ->
+                if (viewModel.esModoSalida)
+                    binding.mainActivity.setBackgroundColor(Color.parseColor("#0D1F0D")) // .parseColor("#0A0E14"))
+                else
+                    binding.mainActivity.setBackgroundColor(Color.parseColor("#0A0E14"))
+
                 val datosAcumulados = StringBuilder("Datos: ")
                 if (state.tipoInput.isNotEmpty()) datosAcumulados.append(" ${state.tipoInput} | ")
                 if (state.calleInput.isNotEmpty()) datosAcumulados.append("Calle: ${state.calleInput} | ")
@@ -458,6 +487,11 @@ class IngresoVehicularActivity : AppCompatActivity() {
                 binding.lblHistorialDatos?.text = datosAcumulados.toString()
                 binding.lblHistorialDatos?.visibility = if (datosAcumulados.length > 8) View.VISIBLE else View.GONE
 
+                //Si hay imagen de prueba de placas mostrarlo
+                if (bitmapDePruebaEmulador!=null && binding.imgEmuladorPlacas.visibility != View.VISIBLE){
+                    binding.imgEmuladorPlacas.setImageBitmap( bitmapDePruebaEmulador)
+                    binding.imgEmuladorPlacas.setVisibility(View.VISIBLE)
+                }
 
                 // 🛑 CORRECCIÓN ANR CRÍTICA: Solo regenerar los Chips si el paso cambió físicamente
                 if (ultimoPasoProcesado != state.currentStep) {
@@ -494,7 +528,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
                                 state.listaDomiciliosFiltrados.map { it.getOrNull(0)?.toString() ?: "" }.distinct()
                             } else {
                                 // Si no hay filtro de Gemini previo, muestra todas las calles configuradas por defecto
-                                viewModel.todosLosDomiciliosCache.map { it.getOrNull(0)?.toString() ?: "" }.distinct()
+                                viewModel.todosLosDomiciliosCache.keys.toMutableList() //.map { it.getOrNull(0)?.toString() ?: "" }.distinct()
                             }
                             fuentesDeCalles.forEach { calle ->
                                 inyectarBotonEnMalla(calle) {
@@ -516,16 +550,42 @@ class IngresoVehicularActivity : AppCompatActivity() {
                                     .filter { (it.getOrNull(0)?.toString() ?: "").equals(state.calleInput, ignoreCase = true) }
                                     .map { it.getOrNull(1)?.toString() ?: "" }
                             } else {
-                                viewModel.todosLosDomiciliosCache
-                                    .filter { (it.getOrNull(0)?.toString() ?: "").equals(state.calleInput, ignoreCase = true) }
-                                    .map { it.getOrNull(1)?.toString() ?: "" }
+                                viewModel.todosLosDomiciliosCache[state.calleInput]
+                                    //.filter { (it.getOrNull(0)?.toString() ?: "").equals(state.calleInput, ignoreCase = true) }
+                                    //.map { it.getOrNull(1)?.toString() ?: "" }
                             }
 
-                            fuentesDeNumeros.forEach { numero ->
+                            fuentesDeNumeros?.forEach { numero ->
                                 inyectarBotonEnMalla(numero) {
                                     controlarEstadoMicrofono(habilitar = false)
                                     viewModel.seleccionarNumero(numero)
                                 }
+                            }
+                        }
+
+                        CaptureStep.SELECCIONA_INGRESO_PREVIO -> {
+                            controlarEstadoMicrofono(habilitar = true)
+                            binding.lblInstruccionSeccion.text = "4. Seleccione su nombre:"
+                            binding.ScrollViewGridBotones.visibility = View.VISIBLE
+                            binding.txtInputManual.visibility = View.GONE
+                            binding.btnSiguientePasoManual.visibility = View.GONE
+
+                            val visitasDomicilio = viewModel.registroVehicularlLast7Days.filter {
+                                it[3].toString().equals(state.calleInput, ignoreCase = true)
+                                        && it[4].toString().equals(state.numeroInput, ignoreCase = true)
+                                        && it[11].toString().isEmpty()
+                            }
+                            visitasDomicilio.forEach {
+                                inyectarBotonEnMalla(it[6].toString()) {
+                                    controlarEstadoMicrofono(habilitar = false)
+                                    viewModel.registrarPlaca(it[2].toString())
+                                    viewModel.guardarNombreYPasarAPlacas(it[6].toString())
+                                }
+                            }
+                            //OTRO
+                            inyectarBotonEnMalla("OTRO") {
+                                controlarEstadoMicrofono(habilitar = false)
+                                viewModel.guardarNombreYPasarAPlacas("OTRO")
                             }
                         }
 
@@ -675,6 +735,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
             add("--vout=android_display")   // Utilizar el motor de renderizado estándar de Android
             add("--android-display-chroma=RV32") // Forzar croma de color estándar de 32 bits compatible con layouts
             add("--video-wallpaper")        // Deshabilitar el modo exclusivo de pantalla completa de hardware
+            add("--no-audio")               // Desactiva por completo la salida y decodificación de audio
         }
         libVLC = LibVLC(this, args)
         mediaPlayer = MediaPlayer(libVLC)
@@ -689,6 +750,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
         }
     }
     private fun observarCicloDeVidaDeCamaras() {
+        //return //AQUI EL ERRORRRR DEL AUDIFONO
         // 1. Reactive loop managing the playback state of the external IP camera
         lifecycleScope.launch {
             viewModel.vlcStreamActive.collectLatest { activo ->
@@ -715,6 +777,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
     }
     private fun encenderStreamVideoRtspPlacas() {
         try {
+            Log.d("VlcNetwork", "AQUI encenderStreamVideoRtspPlacas.")
             // Ensure any existing memory pointers are fully cleared out cleanly before attaching frames
             ocrJob?.cancel()
             ocrJob = null
@@ -765,8 +828,8 @@ class IngresoVehicularActivity : AppCompatActivity() {
                 }
             }
 
-            // Start the asynchronous snapshot extraction engine loop for local OCR parsing
-            iniciarBucleProcesamientoOcrPlacas()
+            // Buscamos en toda la jerarquía de vlcPlacaSurface
+            surfaceInternaVLC = buscarSurfaceViewRecursivo(binding.vlcPlacaSurface)
 
         } catch (e: Exception) {
             Log.e("VlcStream", "Fallo al inicializar texturas de video: ${e.message}")
@@ -774,6 +837,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
         }
     }
     private fun apagarStreamVideoRtspPlacas() {
+        Log.d("VlcNetwork", "AQUI apagarStreamVideoRtspPlacas.")
         try {
             ocrJob?.cancel() // Stop the OCR extractor loop immediately
             ocrJob = null
@@ -806,85 +870,143 @@ class IngresoVehicularActivity : AppCompatActivity() {
     private fun iniciarBucleProcesamientoOcrPlacas() {
         ocrJob?.cancel()
         ocrJob = lifecycleScope.launch(Dispatchers.Default) {
-            // 1. ESPERA ACTIVA: LibVLC tarda en pasar a isPlaying = true
-            // Intentamos esperar hasta 5 segundos a que el stream realmente inicie
-            var intentos = 0
-            while (mediaPlayer?.isPlaying == false && intentos < 20) {
-                delay(500)
-                intentos++
-                Log.d("VlcNetwork", "Esperando a que el mediaplayer inicie... intento $intentos")
-            }
+//            // 1. ESPERA ACTIVA: LibVLC tarda en pasar a isPlaying = true
+//            // Intentamos esperar hasta 5 segundos a que el stream realmente inicie
+//            var intentos = 0
+//            while (mediaPlayer?.isPlaying == false && intentos < 20) {
+//                delay(500)
+//                intentos++
+//                Log.d("VlcNetwork", "Esperando a que el mediaplayer inicie... intento $intentos")
+//            }
+//
+//            // Si después de la espera sigue sin reproducir, abortamos para no gastar CPU
+//            if (mediaPlayer?.isPlaying == false) {
+//                Log.e("VlcNetwork", "El bucle OCR no inició: MediaPlayer nunca llegó al estado 'Playing'")
+//                return@launch
+//            }
+//
+//            var surfaceInternaVLC: SurfaceView? = null
+//
+//            withContext(Dispatchers.Main) {
+//                // Buscamos en toda la jerarquía de vlcPlacaSurface
+//                surfaceInternaVLC = buscarSurfaceViewRecursivo(binding.vlcPlacaSurface)
+//
+//                if (surfaceInternaVLC == null) {
+//                    Log.e("VlcNetwork", "No se encontró un SurfaceView dentro de VLCVideoLayout. " +
+//                            "Hijos detectados: ${binding.vlcPlacaSurface.childCount}")
+//                }
+//            }
 
-            // Si después de la espera sigue sin reproducir, abortamos para no gastar CPU
-            if (mediaPlayer?.isPlaying == false) {
-                Log.e("VlcNetwork", "El bucle OCR no inició: MediaPlayer nunca llegó al estado 'Playing'")
-                return@launch
-            }
-
-            var surfaceInternaVLC: SurfaceView? = null
-
-            withContext(Dispatchers.Main) {
-                // Buscamos en toda la jerarquía de vlcPlacaSurface
-                surfaceInternaVLC = buscarSurfaceViewRecursivo(binding.vlcPlacaSurface)
-
-                if (surfaceInternaVLC == null) {
-                    Log.e("VlcNetwork", "No se encontró un SurfaceView dentro de VLCVideoLayout. " +
-                            "Hijos detectados: ${binding.vlcPlacaSurface.childCount}")
-                }
-            }
-
-            Log.d("VlcNetwork", "✅ Bucle OCR iniciado correctamente.")
+            Log.d("OCR Bucle", "✅ iniciado Bucle OCR iniciado.")
 
             // Loop continues safely while streaming process parameters are active
-            while ( mediaPlayer?.isPlaying == true) {
-                val surfaceTarget = surfaceInternaVLC
-                // Safety boundary: Ensure context surface state is completely solid before copy triggers
-                if (surfaceTarget != null && surfaceTarget.holder.surface.isValid && mediaPlayer?.isPlaying == true) {
-
-                    // Solo creamos el bitmap si es necesario (reutilización de memoria)
-                    if (lastBitmapReadedPlacas == null || lastBitmapReadedPlacas!!.isRecycled ||
-                        lastBitmapReadedPlacas!!.width != surfaceTarget.width) {
-
-                        lastBitmapReadedPlacas = Bitmap.createBitmap(
-                            surfaceTarget.width,
-                            surfaceTarget.height,
-                            Bitmap.Config.ARGB_8888
-                        )
+            while ( isActive){ // && mediaPlayer?.isPlaying == true) {
+                try{
+                    Log.d("OCR Bucle", "\uD83D\uDE97 OCR reading image....")
+                    val bitmapParaProcesar = if (isRunningOnEmulator() && bitmapDePruebaEmulador != null) {
+                        Log.d("OCR Bucle", "using image for debug....")
+                        bitmapDePruebaEmulador!!.copy(bitmapDePruebaEmulador!!.config!!, false)
+                    } else {
+                        // Tu lógica actual:
+                        getCurrentBitmapVlcPlacas()
                     }
-
-                    val bitmapDestino = lastBitmapReadedPlacas!!
-                    withContext(Dispatchers.Main) {
-                        // Double check validation before launching pixel frame cloning transactions
-                        if (surfaceTarget.holder.surface.isValid && mediaPlayer?.isPlaying == true) {
-                            PixelCopy.request(
-                                surfaceTarget,
-                                //bitmapSnapshot,
-                                bitmapDestino,
-                                { resultado ->
-                                    if (resultado == PixelCopy.SUCCESS) {
-                                        val bitmapParaProcesar = bitmapDestino.copy(bitmapDestino.config!!, false)
-                                        procesarOcrEnHiloDeFondo(bitmapParaProcesar)//bitmapSnapshot)
-                                    } else {
-                                        //bitmapSnapshot.recycle() // Avoid dirty leaking allocations
-                                        lastBitmapReadedPlacas.recycle()
-                                    }
-                                },
-                                Handler(Looper.getMainLooper())
-                            )
-                        } else {
-                            //bitmapSnapshot.recycle()
-                            lastBitmapReadedPlacas.recycle()
-                        }
+                    if (bitmapParaProcesar != null) {
+                        procesarOcrEnHiloDeFondo(bitmapParaProcesar)
                     }
-                }else if (surfaceInternaVLC == null) {
-                    // Si perdimos la superficie, intentamos recuperarla una vez más
-                    withContext(Dispatchers.Main) {
-                        surfaceInternaVLC = buscarSurfaceViewRecursivo(binding.vlcPlacaSurface)
-                    }
+                }catch (e: Exception) {
+                    Log.e("OCR Bucle", "Error en bucle de OCR: ${e.message}")
                 }
+
+//                val surfaceTarget = surfaceInternaVLC
+//                // Safety boundary: Ensure context surface state is completely solid before copy triggers
+//                if (surfaceTarget != null && surfaceTarget.holder.surface.isValid && mediaPlayer?.isPlaying == true) {
+//
+//                    // Solo creamos el bitmap si es necesario (reutilización de memoria)
+//                    if (lastBitmapReadedPlacas == null || lastBitmapReadedPlacas!!.isRecycled ||
+//                        lastBitmapReadedPlacas!!.width != surfaceTarget.width) {
+//
+//                        lastBitmapReadedPlacas = Bitmap.createBitmap(
+//                            surfaceTarget.width,
+//                            surfaceTarget.height,
+//                            Bitmap.Config.ARGB_8888
+//                        )
+//                    }
+//
+//                    val bitmapDestino = lastBitmapReadedPlacas!!
+//                    withContext(Dispatchers.Main) {
+//                        // Double check validation before launching pixel frame cloning transactions
+//                        if (surfaceTarget.holder.surface.isValid && mediaPlayer?.isPlaying == true) {
+//                            PixelCopy.request(
+//                                surfaceTarget,
+//                                //bitmapSnapshot,
+//                                bitmapDestino,
+//                                { resultado ->
+//                                    if (resultado == PixelCopy.SUCCESS) {
+//                                        val bitmapParaProcesar = bitmapDestino.copy(bitmapDestino.config!!, false)
+//                                        procesarOcrEnHiloDeFondo(bitmapParaProcesar)//bitmapSnapshot)
+//                                    } else {
+//                                        //bitmapSnapshot.recycle() // Avoid dirty leaking allocations
+//                                        lastBitmapReadedPlacas.recycle()
+//                                    }
+//                                },
+//                                Handler(Looper.getMainLooper())
+//                            )
+//                        } else {
+//                            //bitmapSnapshot.recycle()
+//                            lastBitmapReadedPlacas.recycle()
+//                        }
+//                    }
+//                }else if (surfaceInternaVLC == null) {
+//                    // Si perdimos la superficie, intentamos recuperarla una vez más
+//                    withContext(Dispatchers.Main) {
+//                        surfaceInternaVLC = buscarSurfaceViewRecursivo(binding.vlcPlacaSurface)
+//                    }
+//                }
                 delay(2000) // Process one frame every second to protect CPU profiles
             }
         }
+    }
+    private fun getCurrentBitmapVlcPlacas(): Bitmap{
+        // Si después de la espera sigue sin reproducir, abortamos para no gastar CPU
+        if (mediaPlayer?.isPlaying == false) {
+            Log.e("VlcNetwork", "El bucle OCR no inició: MediaPlayer nunca llegó al estado 'Playing'")
+            return getBitmapFailCapture()
+        }
+
+        if (surfaceInternaVLC == null || !surfaceInternaVLC!!.holder.surface.isValid) {
+            Log.e("VlcNetwork", "No se encontró un SurfaceView dentro de VLCVideoLayout. " +
+                        "Hijos detectados: ${binding.vlcPlacaSurface.childCount}")
+            return getBitmapFailCapture()
+        }
+
+        // Solo creamos el bitmap si es necesario (reutilización de memoria)
+        if (lastBitmapReadedPlacas == null || lastBitmapReadedPlacas!!.isRecycled ||
+            lastBitmapReadedPlacas!!.width != surfaceInternaVLC!!.width) {
+
+            lastBitmapReadedPlacas = Bitmap.createBitmap(
+                surfaceInternaVLC!!.width,
+                surfaceInternaVLC!!.height,
+                Bitmap.Config.ARGB_8888
+            )
+        }
+        var bitmapReturn: Bitmap? = null
+
+        PixelCopy.request(
+            surfaceInternaVLC!!,
+            lastBitmapReadedPlacas,
+            { resultado ->
+                if (resultado == PixelCopy.SUCCESS) {
+                    bitmapReturn= lastBitmapReadedPlacas.copy(lastBitmapReadedPlacas.config!!, false)
+                } else {
+                    lastBitmapReadedPlacas.recycle()
+                }
+            },
+            Handler(Looper.getMainLooper())
+        )
+        if (bitmapReturn != null) {
+            return bitmapReturn
+        }
+        return getBitmapFailCapture()
     }
     private fun buscarSurfaceViewRecursivo(view: View): SurfaceView? {
         if (view is SurfaceView) return view
@@ -902,29 +1024,32 @@ class IngresoVehicularActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.Default) {
             try {
                 val image = InputImage.fromBitmap(bitmap, 0)
-                Log.d("VlcNetwork", "OCR checking bitmap placas....")
+                Log.d("OCR Bucle", "OCR checking bitmap placas....")
                 textRecognizer.process(image)
                     .addOnSuccessListener { visionText ->
+                        Log.d("OCR Bucle", "OnSuccess ....visionText:{$visionText}")
                         // Recycle processed image structure memory rapidly
                         bitmap.recycle()
                         for (block in visionText.textBlocks) {
                             val textoEncontrado = block.text.trim()
                             val placa_sanitizada = textoEncontrado.extraerPlaca()
                             Log.d(
-                                "VlcNetwork",
+                                "OCR Bucle",
                                 "OCR texto encontrado....${textoEncontrado} placa:${placa_sanitizada}"
                             )
                             // Match criteria regex filter tracking patterns
                             if (placa_sanitizada!= null && placa_sanitizada!!.isNotEmpty()) {
-                                viewModel.registrarPlacaDetectadaPorOcr(placa_sanitizada)
+                                viewModel.registrarPlaca(placa_sanitizada)
                                 break
                             }
                         }
                     }
-                    .addOnFailureListener {
+                    .addOnFailureListener { e ->
+                        Log.d("OCR Bucle", "addOnFailureListener .... e:${e.message}")
                         bitmap.recycle() // Clean leak tracks on structural engine failures
                     }
             } catch (e: Exception) {
+                Log.e("OCR Bucle", "Error addOnFailureListener .... :${e.message}")
                 bitmap.recycle()
             }
         }
@@ -1021,6 +1146,31 @@ class IngresoVehicularActivity : AppCompatActivity() {
         }
         canvas.drawText("EVIDENCIA AUTOMATICA - NO RTSP FEED", 320f, 240f, paint)
         return fallbackBitmap
+    }
+    private fun crearBotonPruebaSeleccionarImagen(){
+        if (isRunningOnEmulator()) {
+            // Creamos un botón de prueba dinámico
+            val btnGaleria = Button(this).apply {
+                text = "Cargar Imagen Prueba (OCR)"
+                setBackgroundColor(Color.parseColor("#FF5722"))
+                setTextColor(Color.WHITE)
+            }
+
+            // Lo agregamos al layout (puedes ajustarlo a tu contenedor raíz)
+            val params = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.BOTTOM or Gravity.END
+                setMargins(0, 0, 50, 250) // Ajusta para que no tape otros botones
+            }
+
+            binding.root.addView(btnGaleria, params)
+
+            btnGaleria.setOnClickListener {
+                galleryLauncher.launch("image/*")
+            }
+        }
     }
 
 
