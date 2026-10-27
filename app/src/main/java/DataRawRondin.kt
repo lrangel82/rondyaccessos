@@ -1610,7 +1610,7 @@ class DataRawRondin(
 
         return true
     }
-    fun getBitacoraUltimoAcceso(placa: String): List<Any>{
+    fun getBitacoraUltimoAcceso(placa: String, descartarSalidas: Boolean= false): List<Any>{
         val rows = getBitacoraAccesos()
         var result = mutableListOf<Any>()
         if (rows.isNotEmpty()) {
@@ -1619,9 +1619,16 @@ class DataRawRondin(
                     if (row.size > 4) {
                         val _placa = row[2].toString().uppercase()
                         if (_placa == placa.uppercase()) {
-                            //Concidencia exacta
-                            result = row as MutableList<Any>
-                            return@loop
+                            if (descartarSalidas && row[11].toString().isEmpty()) {
+                                //Concidencia exacta
+                                result = row as MutableList<Any>
+                                return@loop
+                            }
+                            if (descartarSalidas == false){
+                                //Concidencia exacta a la primer coincidencia
+                                result = row as MutableList<Any>
+                                return@loop
+                            }
                         }
                     }
                 }
@@ -1639,7 +1646,7 @@ class DataRawRondin(
         val date7DaysAgo = LocalDateTime.now().minusDays(7)// .minusHours(24)
         return rows.filter {it[2].toString() != "PEATONAL" && parseLenientDateTime(it[1].toString()) >= date7DaysAgo }
     }
-    fun actulizarSalidaAccesos(placaTarget:String, fechaSalidaNueva: String, stringStatus:String): Boolean {
+    fun actulizarSalidaAccesos(placaTarget:String, fechaSalidaNueva: String, stringStatus:String, fecha_creado: String = ""): Boolean {
         if (placaTarget.isBlank()) return false
 
         val table = SheetTable.BITACORA_ACCESOS
@@ -1655,14 +1662,15 @@ class DataRawRondin(
             // 2. Búsqueda por ID
             var rowData: MutableList<Any> = mutableListOf()
             currentCache.forEachIndexed { index, bitacora ->
-                if (bitacora.size >= 4 &&
-                    bitacora[2].toString() == placaTarget &&
-                    bitacora[11].toString().isEmpty()
-                ) {
-                    indexFind = index
-                    rowData = bitacora.toMutableList()
-                    return@forEachIndexed
-                }
+                if (fecha_creado == "" || bitacora[1]==fecha_creado)
+                    if (bitacora.size >= 4 &&
+                        bitacora[2].toString() == placaTarget &&
+                        bitacora[11].toString().isEmpty()
+                    ) {
+                        indexFind = index
+                        rowData = bitacora.toMutableList()
+                        return@forEachIndexed
+                    }
             }
 
             //Vencer
@@ -1792,7 +1800,8 @@ class DataRawRondin(
     fun getMorosos(forceLoad: Boolean = false, createIfNotExist: Boolean = false): List<List<Any>> = runBlocking {
         // Usamos el Enum de DOMICILIOS_MOROSOS y el SmartCache genérico
         getSmartCache(SheetTable.DOMICILIOS_MOROSOS,forceLoad) {
-            val sheetName = SheetTable.DOMICILIOS_MOROSOS.sheetName
+            val postfixLocal = mySettings.getString("POSTFIX_SHEETNAME", "") ?: ""
+            val sheetName = SheetTable.DOMICILIOS_MOROSOS.sheetName.replace(postfixLocal, "")
             val range = SheetTable.DOMICILIOS_MOROSOS.range
             val allRows = mutableListOf<List<Any>>()
 
@@ -1801,20 +1810,33 @@ class DataRawRondin(
             if (spreadsheetIds.isEmpty()) throw IllegalArgumentException("No hay Sheet configurado")
 
             for (id in spreadsheetIds) {
-                val idsheet = getSheetIdByName(id,sheetName)
-                if (idsheet == null && createIfNotExist)
-                    createWorkSheetNew(id,SheetTable.DOMICILIOS_MOROSOS)
+                if (id.isEmpty()) continue
+                try{
+                    //val idsheet = getSheetIdByName(id,sheetName)
+                    //if (idsheet == null && createIfNotExist)
+                    //    createWorkSheetNew(id,SheetTable.DOMICILIOS_MOROSOS)
 
-                // Consultamos el rango A:N (desde Marca temporal hasta Procesado por ROBOT)
-                val response = withContext(Dispatchers.IO) {
-                    sheetsService.spreadsheets().values()
-                        .get(id, "${sheetName}!${range}")
-                        .execute()
+                    val sheetNameRegex = "${sheetName}.*".toRegex()
+                    val sheetNames = getSheetsNameRegex(id, sheetNameRegex) // Asume que retorna List<String>
+                    for (sn in sheetNames) {
+                        try {
+                            // Leemos el rango de la hoja actual
+                            val response = withContext(Dispatchers.IO) {
+                                sheetsService.spreadsheets().values()
+                                    .get(id, "${sn}!${range}")
+                                    .execute()
+                            }
+                            // Omitimos la primera fila (encabezados) de cada hoja
+                            val rows = response.getValues()?.drop(1) ?: emptyList()
+                            allRows.addAll(rows)
+
+                        } catch (e: Exception) {
+                            println("Error ocurred while fetching direcciones from spreadsheet $id, $sn: ${e.message}")
+                        }
+                    }
+                }catch (e: Exception) {
+                    println("Error con el spreadsheet $id: ${e.message}")
                 }
-
-                // Omitimos la primera fila (encabezados) de cada hoja
-                val rows = response.getValues()?.drop(1) ?: emptyList()
-                allRows.addAll(rows)
 
             }
 

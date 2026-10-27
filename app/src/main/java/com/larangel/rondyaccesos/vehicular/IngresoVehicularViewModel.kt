@@ -1217,7 +1217,20 @@ class IngresoVehicularViewModel(
                 }else {
                     //######## ES SALIDA ############
                     // Feature 5: Update previous open records lacking 'fechaSalida'
-                    dataRaw.actulizarSalidaAccesos(state.placaInput, timestampCombinado, "SALIDA REGISTRADA")
+                    //es de varios domicilios?
+                    //if(state.motivoInput!!.variosDomicilios){
+                        var regEntrada = dataRaw.getBitacoraUltimoAcceso(state.placaInput, descartarSalidas = true)
+                        while (!regEntrada.isEmpty()) {
+                            dataRaw.actulizarSalidaAccesos(
+                                state.placaInput,
+                                timestampCombinado,
+                                "SALIDA REGISTRADA",
+                                fecha_creado = regEntrada[1].toString())
+                            regEntrada = dataRaw.getBitacoraUltimoAcceso(state.placaInput, descartarSalidas = true)
+                        }
+                    //}
+
+                    //dataRaw.actulizarSalidaAccesos(state.placaInput, timestampCombinado, "SALIDA REGISTRADA")
                     _uiState.update { it.copy(
                         lblTopMensaje = if (esAutorizado) "HASTA LUEGO" else "ACCESO DENEGADO",
                         mostrarPanelResultadoDerecho = true,

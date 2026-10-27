@@ -709,7 +709,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
             chipStrokeWidth = 2f
             setChipStrokeColorResource(android.R.color.white) // O tu color #00D4FF
             setTextColor(Color.WHITE)
-            textSize = 18f
+            textSize = 30f
             //setTextColor(Color.WHITE)
             //setChipBackgroundColorResource(android.R.color.darker_gray)
             // Al hacer clic, la acción responde de inmediato al primer toque
