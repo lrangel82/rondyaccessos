@@ -15,15 +15,22 @@ import com.larangel.rondyaccesos.databinding.ActivityVigilanteConfigBinding
 import com.larangel.rondyaccesos.models.MySettings
 import com.larangel.rondyaccesos.models.SateliteMode
 import com.larangel.rondyaccesos.caseta.CasetaCentralActivity
+import com.larangel.rondyaccesos.common.ConmutadorManager
 import com.larangel.rondyaccesos.common.DoorController
+import com.larangel.rondyaccesos.common.UCMCallManager
 import com.larangel.rondyaccesos.salida.SalidaVehicularActivity
 import com.larangel.rondyaccesos.salida.SalidaPeatonalActivity
 import com.larangel.rondyaccesos.vehicular.IngresoVehicularActivity
 import com.larangel.rondyaccesos.peatonal.IngresoPeatonalActivity
+import com.larangel.rondyaccesos.utils.telefonoParaTwilio
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.Credentials
+import okhttp3.FormBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import kotlin.collections.component1
 import kotlin.collections.component2
 
@@ -34,6 +41,8 @@ class VigilanteConfigActivity : AppCompatActivity() {
     private lateinit var doorController: DoorController // Nueva instancia centralizada
     private val networkManager by lazy { (application as RondyApplication).networkManager }
     private var btnRoles: Map<Button, SateliteMode> = emptyMap()
+    private lateinit var UCMControler: UCMCallManager
+    private lateinit var TiwiloControler: ConmutadorManager
     //private val httpClient = OkHttpClient()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -153,6 +162,84 @@ class VigilanteConfigActivity : AppCompatActivity() {
 //            abrirPuertaDahua(ip, user, pass, canalId, selectedItem)
         }
 
+        // --- LOGICA IVR ---
+        binding.rgIVRType.setOnCheckedChangeListener { _, checkedId ->
+            binding.layoutUCMFields.visibility = if (checkedId == R.id.rbUCM) View.VISIBLE else View.GONE
+            binding.layoutTwilioFields.visibility = if (checkedId == R.id.rbTwilio) View.VISIBLE else View.GONE
+            mySettings.saveString("IVR_CONTROL_TYPE", if (checkedId == R.id.rbUCM) "UCM" else "TIWILO")
+        }
+        binding.btnUCMTest.setOnClickListener{
+            val selected = binding.spUCMTest.selectedItem?.toString()?.substringAfter(" ") ?: ""
+            if (selected.isEmpty()) return@setOnClickListener
+            val ip = binding.etUCMIp.text.toString()
+            val port = binding.etUCMPortAMI.text.toString()
+            val user = binding.etUCMUserAMI.text.toString()
+            val pass = binding.etUCMPassAMI.text.toString()
+            val ext = binding.etUCMExtIVR.text.toString()
+            val telefono = binding.etUCMTelefonoTest.text.toString()
+
+            lifecycleScope.launch {
+                UCMControler = UCMCallManager(ip,port.toInt(),user,pass,ext)
+                val result = UCMControler.enviarSolicitudAcceso(telefono,"NombrePrueba","Paqueteria")
+                if (result.status != "") {
+                    mySettings.saveString("UCM_IP", ip)
+                    mySettings.saveString("UCM_PUERTO_AMI", port)
+                    mySettings.saveString("UCM_USR_AMI", user)
+                    mySettings.saveString("UCM_PSS_AMI", pass)
+                    mySettings.saveString("UCM_IVR_EXT", ext)
+                    mySettings.saveString("IVR_CONTROL_TYPE", selected)
+                    //actualizarTextoPuertaActual(selected)
+                    Toast.makeText(this@VigilanteConfigActivity, "✅ UCM Guardado resultado: ${result.status} msg:${result.detalles}", Toast.LENGTH_LONG).show()
+                }else {
+                    Toast.makeText(this@VigilanteConfigActivity, "❌ Test Fallido: ${result}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        binding.btnTwilioTest.setOnClickListener{
+            val selected = binding.spTwilioTest.selectedItem?.toString()?.substringAfter(" ") ?: ""
+            if (selected.isEmpty()) return@setOnClickListener
+            val sid = binding.etTwilioAccountSid.text.toString()
+            val token = binding.etTwilioToken.text.toString()
+            val urlflow = binding.etTwilioUrlFlow.text.toString()
+            val telefono = binding.etTwilioTelefono.text.toString()
+
+            lifecycleScope.launch {
+                val telTO = telefono.telefonoParaTwilio()
+                if (telTO.isEmpty()) Toast.makeText(this@VigilanteConfigActivity, "❌ Test Fallido: Telefono Incorrecto", Toast.LENGTH_SHORT).show()
+                val client = OkHttpClient()
+                val formBody = FormBody.Builder()
+                    .add("To", "523310717735") // Teléfono del condómino extraído de row[2]
+                    .add("From", telefono) // Tu número comprado en Twilio
+                    .add("Parameters", "{\"calle\":\"CallePrueba\", \"numero\":\"99\", \"conductor\":\"PRUEBA\",\"motivo\":\"Visita\"}")
+                    .build()
+                val request = Request.Builder()
+                    .url(urlflow)
+                    .addHeader("Authorization", Credentials.basic(sid, token))
+                    .post(formBody)
+                    .build()
+                withContext(Dispatchers.IO) {
+                    try {
+                        val response = client.newCall(request).execute()
+                        if (!response.isSuccessful) {
+                            Log.e("TwilioIVR", "Error al disparar flujo: ${response.code}")
+                            Toast.makeText(this@VigilanteConfigActivity, "❌ Test Fallido Error al disparar flujo: ${response.code}", Toast.LENGTH_LONG).show()
+                        }else{
+                            mySettings.saveString("TWILIO_ACCOUNT_SID", sid)
+                            mySettings.saveString("TWILIO_TOKEN", token)
+                            mySettings.saveString("TWILIO_URL_FLOW", urlflow)
+                            mySettings.saveString("TWILIO_TELEFONO", telefono)
+                            mySettings.saveString("IVR_CONTROL_TYPE", selected)
+                            Toast.makeText(this@VigilanteConfigActivity, "✅ UCM Guardado resultado: ${response} ", Toast.LENGTH_LONG).show()
+                        }
+                    } catch (e: Exception) {
+                        Toast.makeText(this@VigilanteConfigActivity, "❌ Test Fallido Excepción de red al llamar a Twilio: ${e.message}", Toast.LENGTH_LONG).show()
+                        Log.e("TwilioIVR", "Excepción de red al llamar a Twilio: ${e.message}")
+                    }
+                }
+
+            }
+        }
+
         binding.btnBuscarAmigosRED.setOnClickListener {
             lifecycleScope.launch { networkManager.realizarHandshakeInicial(force = true) }
         }
@@ -203,6 +290,24 @@ class VigilanteConfigActivity : AppCompatActivity() {
                 binding.btnTestDahua.isEnabled = true
             }
         }
+
+        //Cargar tipo de IVR
+        val IVRType = mySettings.getString("IVR_CONTROL_TYPE", "UCM")
+        if (IVRType == "UCM") {
+            binding.rbUCM.isChecked = true
+            binding.etUCMIp.setText(mySettings.getString("UCM_IP", ""))
+            binding.etUCMPortAMI.setText(mySettings.getString("UCM_PUERTO_AMI", ""))
+            binding.etUCMUserAMI.setText(mySettings.getString("UCM_USR_AMI", ""))
+            binding.etUCMPassAMI.setText(mySettings.getString("UCM_PSS_AMI", ""))
+            binding.etUCMExtIVR.setText(mySettings.getString("UCM_IVR_EXT", ""))
+        } else {
+            binding.rbTwilio.isChecked = true
+            binding.etTwilioAccountSid.setText(mySettings.getString("TWILIO_ACCOUNT_SID", ""))
+            binding.etTwilioToken.setText(mySettings.getString("TWILIO_TOKEN", ""))
+            binding.etTwilioUrlFlow.setText(mySettings.getString("TWILIO_URL_FLOW", ""))
+            binding.etTwilioTelefono.setText(mySettings.getString("TWILIO_TELEFONO", ""))
+        }
+
     }
     private fun actualizarTextoPuertaActual(canal: String) {
         // Suponiendo que tienes un TextView para esto

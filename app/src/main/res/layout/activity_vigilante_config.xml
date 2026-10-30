@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#F5F5F5">
@@ -202,7 +203,229 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- SECCIÓN 3: CONSOLA Y RED -->
+        <!-- SECCIÓN 3: LLAMADA IVR -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="4dp"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="3. Llamada IVR configuracion"
+                    android:textStyle="bold" />
+
+                <RadioGroup
+                    android:id="@+id/rgIVRType"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="8dp">
+                    <RadioButton android:id="@+id/rbUCM" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="UCM" />
+                    <RadioButton android:id="@+id/rbTwilio" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Twilio" />
+                </RadioGroup>
+
+                <!-- Campos UCM -->
+                <GridLayout
+                    android:id="@+id/layoutUCMFields"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:alignmentMode="alignMargins"
+                    android:columnCount="2"
+                    android:paddingHorizontal="10dp"
+                    android:visibility="visible">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="right|center_vertical"
+                        android:text="IP/Port:"
+                        android:textStyle="italic" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <EditText
+                            android:id="@+id/etUCM_ip"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="IP: 192.168.5.xx" />
+
+                        <EditText
+                            android:id="@+id/etUCM_port_AMI"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="Puerto: 5039" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="right|center_vertical"
+                        android:text="User AMI:"
+                        android:textStyle="italic" />
+
+                    <EditText
+                        android:id="@+id/etUCM_user_AMI"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="Usuario AMI" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="right|center_vertical"
+                        android:text="Password AMI:"
+                        android:textStyle="italic" />
+
+                    <EditText
+                        android:id="@+id/etUCM_pass_AMI"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="Password AMI" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="right|center_vertical"
+                        android:text="Ext IVR:"
+                        android:textStyle="italic" />
+
+                    <EditText
+                        android:id="@+id/etUCM_ext_IVR"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="Extencion IVR ejem: 9382" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="right|center_vertical"
+                        android:text="Test Telefono:"
+                        android:textStyle="italic" />
+
+                    <EditText
+                        android:id="@+id/etUCM_telefono_test"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="0.5"
+                        android:hint="TEL test:3349226633" />
+
+                    <Spinner
+                        android:id="@+id/spUCMTest"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_columnSpan="2"
+                        android:layout_marginTop="8dp"
+                        android:visibility="gone" />
+                    <Button
+                        android:id="@+id/btnUCM_test"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_columnSpan="2"
+                        android:layout_gravity="center_horizontal"
+                        android:layout_margin="8dp"
+                        android:text="Probar IVR UCM"
+                        tools:visibility="visible" />
+
+                </GridLayout>
+
+                <!-- Campos Twilio -->
+                <GridLayout
+                    android:id="@+id/layoutTwilioFields"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:alignmentMode="alignMargins"
+                    android:columnCount="2"
+                    android:paddingHorizontal="10dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="right|center_vertical"
+                        android:text="Account SID:"
+                        android:textStyle="italic" />
+
+                    <EditText
+                        android:id="@+id/etTwilio_account_sid"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="SID" />
+
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="right|center_vertical"
+                        android:text="Token:"
+                        android:textStyle="italic" />
+
+                    <EditText
+                        android:id="@+id/etTwilio_token"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="Token" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="right|center_vertical"
+                        android:text="URL flow:"
+                        android:textStyle="italic" />
+
+                    <EditText
+                        android:id="@+id/etTwilio_url_flow"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="https://twilio.com/..."
+                        android:inputType="textPassword" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="right|center_vertical"
+                        android:text="Twilio Telefono:"
+                        android:textStyle="italic" />
+
+                    <EditText
+                        android:id="@+id/etTwilio_telefono"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:hint="52xxxxxx3" />
+
+                    <Spinner
+                        android:id="@+id/spTwilioTest"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_columnSpan="2"
+                        android:layout_marginTop="8dp"
+                        android:visibility="gone" />
+
+                    <Button
+                        android:id="@+id/btnTwilioTest"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_columnSpan="2"
+                        android:layout_marginTop="8dp"
+                        android:text="Test TWILIO call"
+                        android:visibility="gone" />
+                </GridLayout>
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- SECCIÓN 4: CONSOLA Y RED -->
         <Button android:id="@+id/btnBuscarAmigosRED" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Escanear Red (Modo Satélite)" style="@style/Widget.MaterialComponents.Button.Icon" app:icon="@android:drawable/ic_menu_search"/>
 
         <ScrollView android:id="@+id/scrollConsole" android:layout_width="match_parent" android:layout_height="150dp" android:background="#000" android:layout_marginTop="8dp" android:padding="8dp">
