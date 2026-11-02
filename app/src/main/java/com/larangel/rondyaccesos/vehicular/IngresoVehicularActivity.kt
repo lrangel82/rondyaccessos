@@ -168,6 +168,25 @@ class IngresoVehicularActivity : AppCompatActivity() {
 
         //Boton para debugear placas
         crearBotonPruebaSeleccionarImagen()
+
+        // --- ANPR Listener y Cola de Placas ---
+        viewModel.initLectorANPR()
+        lifecycleScope.launch {
+            viewModel.colaPlacasState.collectLatest { cola ->
+                if (cola.isNotEmpty()) {
+                    binding.layoutColaEspera.visibility = View.VISIBLE
+                    binding.lbColaPlacas.text = "Cola de espera:\n" + cola.take(5).joinToString("\n")
+                    binding.btnSigPlaca.isEnabled = true
+                    binding.btnSigPlaca.text = "Siguiente en cola (${cola.size})"
+                } else {
+                    binding.layoutColaEspera.visibility = View.GONE
+                    binding.btnSigPlaca.isEnabled = false
+                }
+            }
+        }
+        binding.btnSigPlaca.setOnClickListener {
+            viewModel.procesarSiguientePlacaEnCola()
+        }
     }
     override fun onStart() {
         super.onStart()
@@ -486,6 +505,12 @@ class IngresoVehicularActivity : AppCompatActivity() {
                 binding.lblSubtitulosAsistente.text = state.subtitulosAsistente
                 binding.lblHistorialDatos?.text = datosAcumulados.toString()
                 binding.lblHistorialDatos?.visibility = if (datosAcumulados.length > 8) View.VISIBLE else View.GONE
+
+                // Reflejar placaInput en el input manual si proviene de ANPR o de la cola
+                if (state.currentStep == CaptureStep.CAPTURA_PLACA && state.placaInput.isNotEmpty() && binding.txtInputManual.text.toString().trim() != state.placaInput) {
+                    binding.txtInputManual.setText(state.placaInput)
+                    binding.txtInputManual.setSelection(state.placaInput.length)
+                }
 
                 //Si hay imagen de prueba de placas mostrarlo
                 if (bitmapDePruebaEmulador!=null && binding.imgEmuladorPlacas.visibility != View.VISIBLE){
@@ -1471,6 +1496,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        viewModel.stopLectorANPR()
         speechRecognizer?.destroy()
         apagarStreamVideoRtspPlacas()
         mediaPlayer?.release()

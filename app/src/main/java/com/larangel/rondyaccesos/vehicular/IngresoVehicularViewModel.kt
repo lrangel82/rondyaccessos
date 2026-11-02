@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.larangel.rondyaccesos.RondyApplication
 import com.larangel.rondyaccesos.common.ConmutadorManager
+import com.larangel.rondyaccesos.common.DahuaANPRListener
 import com.larangel.rondyaccesos.common.DoorController
 import com.larangel.rondyaccesos.common.UCMCallManager
 import com.larangel.rondyaccesos.models.*
@@ -104,6 +105,107 @@ class IngresoVehicularViewModel(
     init {
         cargarConfiguracionesIniciales()
         reiniciarAsistenteCompleto()
+    }
+
+    // ==========================================
+    // ANPR Dahua Listener & Cola de Placas
+    // ==========================================
+    private var dahuaANPRListener: DahuaANPRListener? = null
+    private val hayPlacasEnColaDeEspera = mutableListOf<String>()
+    private val ultimasPlacasGuardadas = mutableSetOf<String>()
+    private var ultimaPlacaAnprDetectada = ""
+    private var runningAnprDetectadoPlaca = false
+
+    private val _colaPlacasState = MutableStateFlow<List<String>>(emptyList())
+    val colaPlacasState: StateFlow<List<String>> = _colaPlacasState.asStateFlow()
+
+    fun initLectorANPR() {
+        try {
+            dahuaANPRListener?.stop()
+            dahuaANPRListener = null
+
+            val cameraIp = mySettings.getString("DAHUA_IP", "")
+            val user = mySettings.getString("DAHUA_USER", "admin")
+            val pass = mySettings.getString("DAHUA_PASS", "")
+
+            if (cameraIp.isBlank() || cameraIp.length <= 7) {
+                Log.w("ANPR", "IP de cámara ANPR no configurada.")
+                return
+            }
+
+            Log.i("ANPR", "Inicializando DahuaANPRListener para IP: $cameraIp")
+            dahuaANPRListener = DahuaANPRListener(cameraIp, user, pass) { placa ->
+                sedetectoPlacaAnpr(placa)
+            }
+            dahuaANPRListener?.start(viewModelScope)
+        } catch (e: Exception) {
+            Log.e("ANPR", "Error al inicializar ANPR: ${e.message}")
+        }
+    }
+
+    fun stopLectorANPR() {
+        try {
+            dahuaANPRListener?.stop()
+            dahuaANPRListener = null
+        } catch (e: Exception) {
+            Log.e("ANPR", "Error al detener ANPR: ${e.message}")
+        }
+    }
+
+    private fun sedetectoPlacaAnpr(placa: String) {
+        if (!runningAnprDetectadoPlaca && !guardarMutex.isLocked) {
+            val placaSanitizada = placa.extraerPlaca()
+            if (placaSanitizada != null && placaSanitizada.isNotBlank() && placaSanitizada !in ultimasPlacasGuardadas) {
+                viewModelScope.launch(Dispatchers.Main) {
+                    val currentState = _uiState.value
+                    if (currentState.currentStep == CaptureStep.CAPTURA_PLACA) {
+                        if (currentState.placaInput.isBlank() && hayPlacasEnColaDeEspera.isEmpty()) {
+                            ultimaPlacaAnprDetectada = placaSanitizada
+                            runningAnprDetectadoPlaca = true
+                            _uiState.update { it.copy(placaInput = placaSanitizada) }
+                            runningAnprDetectadoPlaca = false
+                            guardarPlacaYSolicitarAutorizacion(placaSanitizada)
+                        } else if (placaSanitizada !in hayPlacasEnColaDeEspera && placaSanitizada != currentState.placaInput) {
+                            if (hayPlacasEnColaDeEspera.size >= 5) {
+                                hayPlacasEnColaDeEspera.clear()
+                            }
+                            hayPlacasEnColaDeEspera.add(placaSanitizada)
+                            _colaPlacasState.value = hayPlacasEnColaDeEspera.toList()
+                        }
+                        verificaColaDeEspera()
+                    } else {
+                        if (placaSanitizada !in hayPlacasEnColaDeEspera && placaSanitizada != currentState.placaInput) {
+                            if (hayPlacasEnColaDeEspera.size >= 5) {
+                                hayPlacasEnColaDeEspera.clear()
+                            }
+                            hayPlacasEnColaDeEspera.add(placaSanitizada)
+                            _colaPlacasState.value = hayPlacasEnColaDeEspera.toList()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fun verificaColaDeEspera() {
+        val currentState = _uiState.value
+        if (currentState.currentStep == CaptureStep.CAPTURA_PLACA && hayPlacasEnColaDeEspera.isNotEmpty()) {
+            if (currentState.placaInput.isBlank() && currentState.calleInput.isBlank() && currentState.numeroInput.isBlank()) {
+                val sigPlaca = hayPlacasEnColaDeEspera.removeAt(0)
+                _colaPlacasState.value = hayPlacasEnColaDeEspera.toList()
+                _uiState.update { it.copy(placaInput = sigPlaca) }
+                guardarPlacaYSolicitarAutorizacion(sigPlaca)
+            }
+        }
+    }
+
+    fun procesarSiguientePlacaEnCola() {
+        if (hayPlacasEnColaDeEspera.isNotEmpty()) {
+            val sigPlaca = hayPlacasEnColaDeEspera.removeAt(0)
+            _colaPlacasState.value = hayPlacasEnColaDeEspera.toList()
+            _uiState.update { it.copy(placaInput = sigPlaca) }
+            guardarPlacaYSolicitarAutorizacion(sigPlaca)
+        }
     }
 
     private fun cargarConfiguracionesIniciales() {

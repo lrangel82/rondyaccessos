@@ -278,6 +278,34 @@
                     app:chipSpacingHorizontal="8dp" />
             </ScrollView>
 
+            <!-- Cola de espera ANPR -->
+            <LinearLayout
+                android:id="@+id/layoutColaEspera"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginBottom="8dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/lbColaPlacas"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Cola de espera:"
+                    android:textColor="#FFEB3B"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSigPlaca"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="4dp"
+                    android:backgroundTint="#FF9800"
+                    android:text="Siguiente Placa en Cola"
+                    android:enabled="false" />
+            </LinearLayout>
+
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/layoutInputManual"
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
