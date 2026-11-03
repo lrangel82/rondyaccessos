@@ -30,6 +30,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Credentials
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
@@ -39,6 +41,7 @@ import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 class IngresoVehicularViewModel(
                                 application: Application,
@@ -72,7 +75,7 @@ class IngresoVehicularViewModel(
     var registroVehicularlLast7Days: List<List<Any>> = emptyList()
 
     // Control parameters loaded dynamically from your S3 configuration
-    var urlCamaraPlacasRtsp: String = "rtsp://larangel:mevale14@172.16.1.67:554/stream2"
+    var urlCamaraPlacasRtsp: String = "rtsp://foo:foo@172.16.1.67:554/stream2"
     var urlCamaraQrRtspFallback: String = ""
     var usarCamaraLocalParaQr: Boolean = true
 
@@ -118,7 +121,6 @@ class IngresoVehicularViewModel(
 
     private val _colaPlacasState = MutableStateFlow<List<String>>(emptyList())
     val colaPlacasState: StateFlow<List<String>> = _colaPlacasState.asStateFlow()
-
     fun initLectorANPR() {
         try {
             dahuaANPRListener?.stop()
@@ -142,7 +144,6 @@ class IngresoVehicularViewModel(
             Log.e("ANPR", "Error al inicializar ANPR: ${e.message}")
         }
     }
-
     fun stopLectorANPR() {
         try {
             dahuaANPRListener?.stop()
@@ -151,7 +152,6 @@ class IngresoVehicularViewModel(
             Log.e("ANPR", "Error al detener ANPR: ${e.message}")
         }
     }
-
     private fun sedetectoPlacaAnpr(placa: String) {
         if (!runningAnprDetectadoPlaca && !guardarMutex.isLocked) {
             val placaSanitizada = placa.extraerPlaca()
@@ -186,7 +186,6 @@ class IngresoVehicularViewModel(
             }
         }
     }
-
     fun verificaColaDeEspera() {
         val currentState = _uiState.value
         if (currentState.currentStep == CaptureStep.CAPTURA_PLACA && hayPlacasEnColaDeEspera.isNotEmpty()) {
@@ -198,7 +197,6 @@ class IngresoVehicularViewModel(
             }
         }
     }
-
     fun procesarSiguientePlacaEnCola() {
         if (hayPlacasEnColaDeEspera.isNotEmpty()) {
             val sigPlaca = hayPlacasEnColaDeEspera.removeAt(0)
@@ -220,8 +218,17 @@ class IngresoVehicularViewModel(
             urlCamaraPlacasRtsp = urlGuardadaEnCache
             Log.d("ConfigCamara", "Cargando cámara de placas preferida desde caché: $urlCamaraPlacasRtsp")
         } else {
+            //Obtener de la configuracion del archivo
+            var camaraPlacaJson: JsonObject
+            if (esModoSalida)
+                camaraPlacaJson = mySettings.getJson("URL_CAMARA_PLACAS_SALIDA")
+            else
+                camaraPlacaJson = mySettings.getJson("URL_CAMARA_PLACAS_INGRESO")
+            val rstp_user= mySettings.getString("RSTP_USER", "admin")
+            val rstp_pass= mySettings.getString("RSTP_PASS", "admin123")
             // Valor de respaldo por defecto de tu script original si el caché está limpio
-            urlCamaraPlacasRtsp = "rtsp://admin:admin123@172.16.1.67:554/stream2"
+            urlCamaraPlacasRtsp = "rtsp://${rstp_user}:${rstp_pass}}@${camaraPlacaJson["ip"]?.jsonPrimitive?.content}:${camaraPlacaJson["port"]?.jsonPrimitive?.content}/${camaraPlacaJson["stream"]?.jsonPrimitive?.content}"
+            mySettings.saveString("URL_CAMARA_PLACAS_PREFERIDA", urlCamaraPlacasRtsp)
         }
     }
 
@@ -1276,7 +1283,7 @@ class IngresoVehicularViewModel(
                         foto2Url = urlFoto2,
                         qrData = state.qrData,
                         fechaSalida = "",
-                        status = if (esAutorizado) "AUTORIZADO" else "DENEGADO"
+                        status = if (esAutorizado) "AUTORIZADO RONDY" else "DENEGADO RONDY"
                     )
 
                     _uiState.update { it.copy(
@@ -1328,7 +1335,7 @@ class IngresoVehicularViewModel(
                             dataRaw.actulizarSalidaAccesos(
                                 state.placaInput,
                                 timestampCombinado,
-                                "SALIDA REGISTRADA",
+                                "SALIDA REGISTRADA RONDY",
                                 fecha_creado = regEntrada[1].toString())
                             regEntrada = dataRaw.getBitacoraUltimoAcceso(state.placaInput, descartarSalidas = true)
                         }
@@ -1419,7 +1426,7 @@ class IngresoVehicularViewModel(
         // Si el motivo de acceso requiere autorización por Caseta exclusivamente
         if (state.motivoInput?.autorizadoPorCaseta == true) {
             orquestadorJob = viewModelScope.launch(Dispatchers.IO) {
-                withTimeout(120_000L) {
+                withTimeout(120.seconds) {
                     dispararSocketCasetaManual(state)
                 }
             }
@@ -1451,7 +1458,7 @@ class IngresoVehicularViewModel(
         // Si no hay teléfonos registrados, despachar Socket a Caseta directamente como respaldo
         if (telefonosArray.isEmpty()) {
             orquestadorJob = viewModelScope.launch(Dispatchers.IO) {
-                withTimeout(120_000L) {
+                withTimeout(120.seconds) {
                     dispararSocketCasetaManual(state)
                 }
             }
@@ -1479,10 +1486,10 @@ class IngresoVehicularViewModel(
         // Orquestador asíncrono en IO con límite de 120 segundos
         orquestadorJob = viewModelScope.launch(Dispatchers.IO) {
             try {
-                withTimeout(maxTimeoutSecs * 1000L) {
+                withTimeout((maxTimeoutSecs * 1000L).milliseconds) {
                     // SUB-HILO DE RESPALDO: Espera pasiva de 60 segundos para activar el Socket de Caseta si el residente no responde
                     launch {
-                        delay(60_000L)
+                        delay(90.seconds)
                         dispararSocketCasetaManual(state)
                     }
 
@@ -1574,7 +1581,7 @@ class IngresoVehicularViewModel(
                     }
 
                     while (isActive && !flujoResuelto.get()) {
-                        delay(500)
+                        delay(500.milliseconds)
                     }
                 }
             } catch (e: TimeoutCancellationException) {

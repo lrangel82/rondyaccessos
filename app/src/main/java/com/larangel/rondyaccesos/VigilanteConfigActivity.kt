@@ -27,6 +27,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Credentials
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
@@ -90,13 +92,20 @@ class VigilanteConfigActivity : AppCompatActivity() {
             val urlOpen = binding.etUrlOpen.text.toString()
             val urlClose = binding.etUrlClose.text.toString() // Asegúrate de tener este ID en tu XML
 
+            networkManager.logToConsole("ConfigTest", "HTTP Test -> Enviando URLs [Open: $urlOpen, Close: $urlClose]")
             lifecycleScope.launch {
                 val result = doorController.ejecutarPulsadorHttp(urlOpen, urlClose)
                 result.onSuccess {
-                    mySettings.saveString("URL_OPEN", urlOpen)
-                    mySettings.saveString("URL_CLOSE", urlClose)
+                    val urlpush = "{ \"abrir\": \"$urlOpen\", \"cerrar\": \"$urlClose\" }"
+                    val currentMode = mySettings.getString("SATELITE_NODE_MODE", "")
+                    if (currentMode == SateliteMode.INGRESO_VEHICULAR.name)
+                        mySettings.saveString("URL_PUSH_INGRESO_VEHICULO", urlpush)
+                    if (currentMode == SateliteMode.SALIDA_VEHICULAR.name)
+                        mySettings.saveString("URL_PUSH_SALIDA_VEHICULO", urlpush)
+                    networkManager.logToConsole("ConfigTest", "✅ HTTP Test exitoso y guardado correctamente.")
                     Toast.makeText(this@VigilanteConfigActivity, "✅ Guardado correctamente", Toast.LENGTH_SHORT).show()
                 }.onFailure {
+                    networkManager.logToConsole("ConfigTest", "❌ HTTP Test fallido: ${it.message}")
                     Toast.makeText(this@VigilanteConfigActivity, "❌ Error: ${it.message}", Toast.LENGTH_SHORT).show()
                 }
             }
@@ -108,6 +117,7 @@ class VigilanteConfigActivity : AppCompatActivity() {
             val user = binding.etDahuaUser.text.toString()
             val pass = binding.etDahuaPass.text.toString()
 
+            networkManager.logToConsole("ConfigTest", "Dahua Connect -> Conectando a IP: $ip, User: $user...")
             lifecycleScope.launch {
                 val result = doorController.obtenerPuertasDahua(ip, user, pass)
                 result.onSuccess { canales ->
@@ -117,9 +127,11 @@ class VigilanteConfigActivity : AppCompatActivity() {
                     binding.btnTestDahua.visibility = View.VISIBLE
                     // Al cargar nuevas puertas, el botón de test se habilita
                     binding.btnTestDahua.isEnabled = true
+                    networkManager.logToConsole("ConfigTest", "✅ Dahua Conectado. Canales encontrados: $canales")
 
                 }.onFailure {
                     Log.e("DahuaConnect", "Error al conectarse a Dahua: ${it}")
+                    networkManager.logToConsole("ConfigTest", "❌ Dahua Conexión Fallida: ${it.message}")
                     Toast.makeText(this@VigilanteConfigActivity, "Error Dahua: ${it.message}", Toast.LENGTH_LONG).show()
                 }
             }
@@ -136,6 +148,7 @@ class VigilanteConfigActivity : AppCompatActivity() {
             val user = binding.etDahuaUser.text.toString()
             val pass = binding.etDahuaPass.text.toString()
 
+            networkManager.logToConsole("ConfigTest", "Dahua Test Door -> Ejecutando apertura en canal: $selected (IP: $ip)")
             lifecycleScope.launch {
                 val result = doorController.ejecutarAperturaDahua(ip, user, pass, selected)
                 result.onSuccess {
@@ -144,8 +157,10 @@ class VigilanteConfigActivity : AppCompatActivity() {
                     mySettings.saveString("DAHUA_PASS", pass)
                     mySettings.saveString("DAHUA_SELECTED_DOOR_CHAN", selected)
                     actualizarTextoPuertaActual(selected)
+                    networkManager.logToConsole("ConfigTest", "✅ Apertura Dahua exitosa en canal $selected y guardado.")
                     Toast.makeText(this@VigilanteConfigActivity, "✅ Dahua Guardado", Toast.LENGTH_SHORT).show()
                 }.onFailure {
+                    networkManager.logToConsole("ConfigTest", "❌ Apertura Dahua fallida: ${it.message}")
                     Toast.makeText(this@VigilanteConfigActivity, "❌ Test Fallido: ${it.message}", Toast.LENGTH_SHORT).show()
                 }
             }
@@ -178,6 +193,7 @@ class VigilanteConfigActivity : AppCompatActivity() {
             val ext = binding.etUCMExtIVR.text.toString()
             val telefono = binding.etUCMTelefonoTest.text.toString()
 
+            networkManager.logToConsole("ConfigTest", "UCM Test -> Iniciando llamada AMI -> IP: $ip:$port, Ext: $ext, Destino: $telefono")
             lifecycleScope.launch {
                 UCMControler = UCMCallManager(ip,port.toInt(),user,pass,ext)
                 val result = UCMControler.enviarSolicitudAcceso(telefono,"NombrePrueba","Paqueteria")
@@ -188,9 +204,10 @@ class VigilanteConfigActivity : AppCompatActivity() {
                     mySettings.saveString("UCM_PSS_AMI", pass)
                     mySettings.saveString("UCM_IVR_EXT", ext)
                     mySettings.saveString("IVR_CONTROL_TYPE", selected)
-                    //actualizarTextoPuertaActual(selected)
+                    networkManager.logToConsole("ConfigTest", "UCM Test Resultado -> Status: ${result.status}, Detalles: ${result.detalles}")
                     Toast.makeText(this@VigilanteConfigActivity, "✅ UCM Guardado resultado: ${result.status} msg:${result.detalles}", Toast.LENGTH_LONG).show()
                 }else {
+                    networkManager.logToConsole("ConfigTest", "❌ UCM Test Fallido: $result")
                     Toast.makeText(this@VigilanteConfigActivity, "❌ Test Fallido: ${result}", Toast.LENGTH_SHORT).show()
                 }
             }
@@ -203,9 +220,14 @@ class VigilanteConfigActivity : AppCompatActivity() {
             val urlflow = binding.etTwilioUrlFlow.text.toString()
             val telefono = binding.etTwilioTelefono.text.toString()
 
+            networkManager.logToConsole("ConfigTest", "Twilio Test -> Disparando flujo -> URL: $urlflow, Destino: $telefono")
             lifecycleScope.launch {
                 val telTO = telefono.telefonoParaTwilio()
-                if (telTO.isEmpty()) Toast.makeText(this@VigilanteConfigActivity, "❌ Test Fallido: Telefono Incorrecto", Toast.LENGTH_SHORT).show()
+                if (telTO.isEmpty()) {
+                    networkManager.logToConsole("ConfigTest", "❌ Twilio Test Fallido: Teléfono incorrecto")
+                    Toast.makeText(this@VigilanteConfigActivity, "❌ Test Fallido: Telefono Incorrecto", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
                 val client = OkHttpClient()
                 val formBody = FormBody.Builder()
                     .add("To", "523310717735") // Teléfono del condómino extraído de row[2]
@@ -222,6 +244,7 @@ class VigilanteConfigActivity : AppCompatActivity() {
                         val response = client.newCall(request).execute()
                         if (!response.isSuccessful) {
                             Log.e("TwilioIVR", "Error al disparar flujo: ${response.code}")
+                            networkManager.logToConsole("ConfigTest", "❌ Twilio Test Error al disparar flujo: Código ${response.code}")
                             Toast.makeText(this@VigilanteConfigActivity, "❌ Test Fallido Error al disparar flujo: ${response.code}", Toast.LENGTH_LONG).show()
                         }else{
                             mySettings.saveString("TWILIO_ACCOUNT_SID", sid)
@@ -229,9 +252,11 @@ class VigilanteConfigActivity : AppCompatActivity() {
                             mySettings.saveString("TWILIO_URL_FLOW", urlflow)
                             mySettings.saveString("TWILIO_TELEFONO", telefono)
                             mySettings.saveString("IVR_CONTROL_TYPE", selected)
+                            networkManager.logToConsole("ConfigTest", "✅ Twilio Test Exitoso: ${response}")
                             Toast.makeText(this@VigilanteConfigActivity, "✅ UCM Guardado resultado: ${response} ", Toast.LENGTH_LONG).show()
                         }
                     } catch (e: Exception) {
+                        networkManager.logToConsole("ConfigTest", "❌ Twilio Test Excepción de red: ${e.message}")
                         Toast.makeText(this@VigilanteConfigActivity, "❌ Test Fallido Excepción de red al llamar a Twilio: ${e.message}", Toast.LENGTH_LONG).show()
                         Log.e("TwilioIVR", "Excepción de red al llamar a Twilio: ${e.message}")
                     }
@@ -276,8 +301,6 @@ class VigilanteConfigActivity : AppCompatActivity() {
         val doorType = mySettings.getString("DOOR_CONTROL_TYPE", "HTTP")
         if (doorType == "HTTP") {
             binding.rbHttp.isChecked = true
-            binding.etUrlOpen.setText(mySettings.getString("URL_OPEN", ""))
-            binding.etUrlClose.setText(mySettings.getString("URL_CLOSE", ""))
         } else {
             binding.rbDahua.isChecked = true
             binding.etDahuaIp.setText(mySettings.getString("DAHUA_IP", ""))
@@ -289,6 +312,17 @@ class VigilanteConfigActivity : AppCompatActivity() {
                 binding.btnTestDahua.visibility = View.VISIBLE
                 binding.btnTestDahua.isEnabled = true
             }
+        }
+
+        if (currentMode == SateliteMode.INGRESO_VEHICULAR.name) {
+            val urlpush= mySettings.getJson("URL_PUSH_INGRESO_VEHICULO")
+            binding.etUrlOpen.setText(urlpush["abrir"]?.jsonPrimitive?.content )
+            binding.etUrlClose.setText(urlpush["cerrar"]?.jsonPrimitive?.content)
+        }
+        if (currentMode == SateliteMode.SALIDA_VEHICULAR.name) {
+            val urlpush= mySettings.getJson("URL_PUSH_SALIDA_VEHICULO")
+            binding.etUrlOpen.setText(urlpush["abrir"]?.jsonPrimitive?.content )
+            binding.etUrlClose.setText(urlpush["cerrar"]?.jsonPrimitive?.content)
         }
 
         //Cargar tipo de IVR
@@ -516,8 +550,6 @@ class VigilanteConfigActivity : AppCompatActivity() {
     }
 
 }
-
-
 
 
 //object DahuaDigestHelper {

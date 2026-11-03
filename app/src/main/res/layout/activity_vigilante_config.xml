@@ -92,7 +92,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:visibility="gone">
+                    android:visibility="visible">
 
                     <EditText
                         android:id="@+id/etUrlOpen"
@@ -241,7 +241,7 @@
                     android:alignmentMode="alignMargins"
                     android:columnCount="2"
                     android:paddingHorizontal="10dp"
-                    android:visibility="visible">
+                    android:visibility="gone">
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -292,7 +292,8 @@
                         android:id="@+id/etUCM_pass_AMI"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:hint="Password AMI" />
+                        android:hint="Password AMI"
+                        android:inputType="text|textPassword" />
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -328,6 +329,7 @@
                         android:layout_columnSpan="2"
                         android:layout_marginTop="8dp"
                         android:visibility="gone" />
+
                     <Button
                         android:id="@+id/btnUCM_test"
                         android:layout_width="wrap_content"
@@ -375,7 +377,8 @@
                         android:id="@+id/etTwilio_token"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:hint="Token" />
+                        android:hint="Token"
+                        android:inputType="text|textPassword" />
 
                     <TextView
                         android:layout_width="wrap_content"

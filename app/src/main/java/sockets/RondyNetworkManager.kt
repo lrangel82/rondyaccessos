@@ -44,7 +44,7 @@ class RondyNetworkManager(
         realizarHandshakeInicial()
     }
 
-    private fun logToConsole(tag: String, msg: String) {
+    fun logToConsole(tag: String, msg: String) {
         Log.d(tag, msg) // Seguir viéndolo en Android Studio
 
         val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())

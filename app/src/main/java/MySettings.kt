@@ -11,6 +11,8 @@ import org.xmlpull.v1.XmlPullParser
 import com.larangel.rondyaccesos.models.com.larangel.rondyaccesos.utils.S3XmlParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
 import java.io.StringReader
 import java.time.LocalDate
 import java.util.Properties
@@ -118,6 +120,11 @@ class MySettings(private val context: Context) {
             val UCM_USR_AMI                     = props.getProperty("conmutador_usr_ami")
             val UCM_PSS_AMI                     = props.getProperty("conmutador_pss_ami")
             val UCM_IVR_EXT                     = props.getProperty("conmutador_ivr_ext")
+            val URL_PUSH_INGRESO_VEHICULO       = props.getProperty("barrera_ingreso") ?: "{}"
+            val URL_PUSH_SALIDA_VEHICULO        = props.getProperty("barrera_salida") ?: "{}"
+            val URL_CAMARA_PLACAS_INGRESO       = props.getProperty("camplaca_cxn") ?: "{}"
+            val URL_CAMARA_PLACAS_SALIDA        = props.getProperty("camplacasalida_cxn") ?: "{}"
+
 
             putString("APP_NAME", APP_NAME)
             putString("POSTFIX_SHEETNAME", POSTFIX_SHEETNAME)
@@ -157,6 +164,12 @@ class MySettings(private val context: Context) {
             putString("UCM_USR_AMI",UCM_USR_AMI)
             putString("UCM_PSS_AMI",UCM_PSS_AMI)
             putString("UCM_IVR_EXT",UCM_IVR_EXT)
+            putString("URL_PUSH_INGRESO_VEHICULO",URL_PUSH_INGRESO_VEHICULO)
+            putString("URL_PUSH_SALIDA_VEHICULO",URL_PUSH_SALIDA_VEHICULO)
+            putString("URL_CAMARA_PLACAS_INGRESO",URL_CAMARA_PLACAS_INGRESO)
+            putString("URL_CAMARA_PLACAS_SALIDA",URL_CAMARA_PLACAS_SALIDA)
+
+
 
 
 
@@ -225,6 +238,10 @@ class MySettings(private val context: Context) {
             putString("UCM_USR_AMI","")
             putString("UCM_PSS_AMI","")
             putString("UCM_IVR_EXT","")
+            putString("URL_PUSH_INGRESO_VEHICULO","{}")
+            putString("URL_PUSH_SALIDA_VEHICULO","{}")
+            putString("URL_CAMARA_PLACAS_INGRESO","{}")
+            putString("URL_CAMARA_PLACAS_SALIDA","{}")
 
             //CLEAN CACHE
             SheetTable.values().forEach{table ->
@@ -293,9 +310,9 @@ class MySettings(private val context: Context) {
             listOf<String>(jsonString)
         }
     }
-    fun getJson(key: String): Json{
+    fun getJson(key: String): JsonObject {
         val jsonString=sharedPreferences.getString(key, "{}") ?: "{}"
-        return Json.decodeFromString(jsonString)
+        return Json.parseToJsonElement(jsonString).jsonObject
     }
 
     fun saveLong(key: String, value: Long){

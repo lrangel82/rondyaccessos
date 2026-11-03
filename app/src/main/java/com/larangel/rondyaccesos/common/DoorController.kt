@@ -2,12 +2,16 @@ package com.larangel.rondyaccesos.common
 
 import android.content.Context
 import com.larangel.rondyaccesos.models.MySettings
+import com.larangel.rondyaccesos.models.SateliteMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.*
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
+import kotlin.time.Duration.Companion.milliseconds
 
 class DoorController(context: Context) {
     private val mySettings = MySettings(context)
@@ -34,18 +38,25 @@ class DoorController(context: Context) {
 
     suspend fun ejecutarPulsadorHttp(urlOpenOverride: String? = null, urlCloseOverride: String? = null): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val urlOpen = urlOpenOverride ?: mySettings.getString("URL_OPEN", "")
-            val urlClose = urlCloseOverride ?: mySettings.getString("URL_CLOSE", "")
+            val currentMode = mySettings.getString("SATELITE_NODE_MODE", "")
+            var urlpush: JsonObject? = null
+            if (currentMode == SateliteMode.INGRESO_VEHICULAR.name)
+                urlpush= mySettings.getJson("URL_PUSH_INGRESO_VEHICULO")
+            if (currentMode == SateliteMode.SALIDA_VEHICULAR.name)
+                urlpush= mySettings.getJson("URL_PUSH_SALIDA_VEHICULO")
 
-            if (urlOpen.isEmpty()) return@withContext Result.failure(Exception("URL de apertura vacía"))
+            val urlOpen = urlOpenOverride ?: urlpush?.get("abrir")?.jsonPrimitive?.content
+            val urlClose = urlCloseOverride ?: urlpush?.get("cerrar")?.jsonPrimitive?.content
+
+            if (urlOpen?.isEmpty() == true) return@withContext Result.failure(Exception("URL de apertura vacía"))
 
             // Llamada 1: Abrir
-            val reqOpen = Request.Builder().url(urlOpen).build()
+            val reqOpen = Request.Builder().url(urlOpen ?: "").build()
             httpClient.newCall(reqOpen).execute().use { if (!it.isSuccessful) return@withContext Result.failure(Exception("Error al abrir: ${it.code}")) }
 
             // Si hay URL de cierre, simular pulsador con delay
-            if (urlClose.isNotEmpty()) {
-                delay(500)
+            if (urlClose?.isNotEmpty() == true) {
+                delay(500.milliseconds)
                 val reqClose = Request.Builder().url(urlClose).build()
                 httpClient.newCall(reqClose).execute().use { }
             }
