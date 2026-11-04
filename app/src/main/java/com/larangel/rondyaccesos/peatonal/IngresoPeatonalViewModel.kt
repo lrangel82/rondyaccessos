@@ -51,6 +51,7 @@ class IngresoPeatonalViewModel(
     private val _whatsappStatus = MutableStateFlow<WhatsappAuthStatus>(WhatsappAuthStatus.Idle)
     val whatsappStatus: StateFlow<WhatsappAuthStatus> = _whatsappStatus.asStateFlow()
     private var whatsappPollingJob: Job? = null
+    private var subtitulosJob: Job? = null
 
 
     var listadoMotivosPredefinidos: List<TipoAccesos> = emptyList()
@@ -128,7 +129,8 @@ class IngresoPeatonalViewModel(
             }
         }
 
-        viewModelScope.launch {
+        subtitulosJob?.cancel()
+        subtitulosJob = viewModelScope.launch {
             geminiVoiceAssistant.subtitulosState.collect { speechText ->
                 _uiState.update { it.copy(subtitulosAsistente = speechText) }
             }

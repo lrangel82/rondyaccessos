@@ -201,6 +201,7 @@ class MySettings(private val context: Context) {
     fun cleanPreferenceS3Config(){
         with(sharedPreferences.edit()) {
             putInt("APP_ACTIVADA", 0)
+            putString("POSTFIX_SHEETNAME", "")
             putInt("ESADMIN",0)
             putString("REGISTRO_CARROS_SPREADSHEET_ID", "")
             putString("PARKING_SPREADSHEET_ID", "")

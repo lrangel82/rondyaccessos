@@ -30,6 +30,8 @@ import com.google.mlkit.vision.common.InputImage
 import com.larangel.rondyaccesos.RondyApplication
 import com.larangel.rondyaccesos.databinding.ActivityIngresoVehicularBinding
 import com.larangel.rondyaccesos.models.CaptureStep
+import com.larangel.rondyaccesos.ui.VigilanteConfigActivity
+import com.larangel.rondyaccesos.utils.SecurityUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -54,7 +56,6 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import com.google.mlkit.vision.barcode.BarcodeScanning
-import com.larangel.rondyaccesos.ui.VigilanteConfigActivity
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import android.speech.tts.UtteranceProgressListener
@@ -169,6 +170,16 @@ class IngresoVehicularActivity : AppCompatActivity() {
         //Boton para debugear placas
         crearBotonPruebaSeleccionarImagen()
 
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                SecurityUtils.mostrarDialogoValidacionPin(this@IngresoVehicularActivity) {
+                    isAuthorizedToExit = true
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
+
         // --- ANPR Listener y Cola de Placas ---
         viewModel.initLectorANPR()
         lifecycleScope.launch {
@@ -242,19 +253,22 @@ class IngresoVehicularActivity : AppCompatActivity() {
             }
         }
         binding.btnMenuConfiguracion.setOnClickListener {
-            // 1. Detener por completo los hilos de procesamiento y cerrar streams
-            apagarStreamVideoRtspPlacas() // Apaga LibVLC y el OcrJob
+            SecurityUtils.mostrarDialogoValidacionPin(this) {
+                isAuthorizedToExit = true
+                // 1. Detener por completo los hilos de procesamiento y cerrar streams
+                apagarStreamVideoRtspPlacas() // Apaga LibVLC y el OcrJob
 
-            cameraProvider?.unbindAll() // Apaga CameraX Frontal de inmediato
-            cameraExecutor?.shutdown()  // Destruye el pool de hilos de la cámara
+                cameraProvider?.unbindAll() // Apaga CameraX Frontal de inmediato
+                cameraExecutor?.shutdown()  // Destruye el pool de hilos de la cámara
 
-            Toast.makeText(this, "Liberando hardware de video. Abriendo configuración...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Liberando hardware de video. Abriendo configuración...", Toast.LENGTH_SHORT).show()
 
-            // 2. Redireccionar de vuelta a la pantalla de configuración de satélites
-            val intentConfig = Intent(this, VigilanteConfigActivity::class.java)
-            startActivity(intentConfig)
+                // 2. Redireccionar de vuelta a la pantalla de configuración de satélites
+                val intentConfig = Intent(this, VigilanteConfigActivity::class.java)
+                startActivity(intentConfig)
 
-            finish() // Destruir esta Activity para limpiar la RAM por completo
+                finish() // Destruir esta Activity para limpiar la RAM por completo
+            }
         }
 
         binding.btnSwitchCamera.setOnClickListener {
@@ -1493,6 +1507,22 @@ class IngresoVehicularActivity : AppCompatActivity() {
     override fun onUserInteraction() {
         super.onUserInteraction()
         viewModel.iniciarTimerInactividad()
+    }
+
+    private var isAuthorizedToExit = false
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (!isAuthorizedToExit) {
+            val intent = Intent(this, javaClass).apply {
+                addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
+            startActivity(intent)
+            SecurityUtils.mostrarDialogoValidacionPin(this) {
+                isAuthorizedToExit = true
+                Toast.makeText(this, "Acceso autorizado para salir", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     override fun onDestroy() {

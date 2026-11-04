@@ -27,6 +27,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import com.larangel.rondyaccesos.ui.VigilanteConfigActivity
+import com.larangel.rondyaccesos.utils.SecurityUtils
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.*
@@ -135,7 +136,15 @@ class IngresoPeatonalActivity : AppCompatActivity() {
         observarCicloDelAsistente()
         registrarObservadorWhatsapp()
 
-
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                SecurityUtils.mostrarDialogoValidacionPin(this@IngresoPeatonalActivity) {
+                    isAuthorizedToExit = true
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
     }
     override fun onStart() {
         super.onStart()
@@ -185,18 +194,21 @@ class IngresoPeatonalActivity : AppCompatActivity() {
             }
         }
         binding.btnMenuConfiguracion.setOnClickListener {
-            // 1. Detener por completo los hilos de procesamiento y cerrar streams
-            viewModel.detenerAllJobs()
-            cameraProvider?.unbindAll() // Apaga CameraX Frontal de inmediato
-            cameraExecutor?.shutdown()  // Destruye el pool de hilos de la cámara
+            SecurityUtils.mostrarDialogoValidacionPin(this) {
+                isAuthorizedToExit = true
+                // 1. Detener por completo los hilos de procesamiento y cerrar streams
+                viewModel.detenerAllJobs()
+                cameraProvider?.unbindAll() // Apaga CameraX Frontal de inmediato
+                cameraExecutor?.shutdown()  // Destruye el pool de hilos de la cámara
 
-            Toast.makeText(this, "Liberando hardware de video. Abriendo configuración...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Liberando hardware de video. Abriendo configuración...", Toast.LENGTH_SHORT).show()
 
-            // 2. Redireccionar de vuelta a la pantalla de configuración de satélites
-            val intentConfig = Intent(this, VigilanteConfigActivity::class.java)
-            startActivity(intentConfig)
+                // 2. Redireccionar de vuelta a la pantalla de configuración de satélites
+                val intentConfig = Intent(this, VigilanteConfigActivity::class.java)
+                startActivity(intentConfig)
 
-            finish() // Destruir esta Activity para limpiar la RAM por completo
+                finish() // Destruir esta Activity para limpiar la RAM por completo
+            }
         }
 
         binding.btnSwitchCamera.setOnClickListener {
@@ -1096,6 +1108,22 @@ class IngresoPeatonalActivity : AppCompatActivity() {
         if (viewFocus != null) {
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.hideSoftInputFromWindow(viewFocus.windowToken, 0)
+        }
+    }
+
+    private var isAuthorizedToExit = false
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (!isAuthorizedToExit) {
+            val intent = Intent(this, javaClass).apply {
+                addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
+            startActivity(intent)
+            SecurityUtils.mostrarDialogoValidacionPin(this) {
+                isAuthorizedToExit = true
+                Toast.makeText(this, "Acceso autorizado para salir", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 

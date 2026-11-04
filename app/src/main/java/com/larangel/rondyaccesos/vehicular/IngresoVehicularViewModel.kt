@@ -103,6 +103,7 @@ class IngresoVehicularViewModel(
     private val flujoSocketCasetaDisparado = AtomicBoolean(false)
     private val flujoWhatsAppDisparado = AtomicBoolean(false)
     private val flujoIVRDisparado = AtomicBoolean(false)
+    private var subtitulosJob: Job? = null
 
 
     init {
@@ -266,7 +267,8 @@ class IngresoVehicularViewModel(
                 )
             }
         }
-        viewModelScope.launch {
+        subtitulosJob?.cancel()
+        subtitulosJob = viewModelScope.launch {
             geminiVoiceAssistant.subtitulosState.collect { speechText ->
                 _uiState.update { it.copy(subtitulosAsistente = speechText) }
             }
