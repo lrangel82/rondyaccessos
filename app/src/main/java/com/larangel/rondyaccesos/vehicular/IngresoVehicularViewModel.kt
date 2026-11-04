@@ -861,14 +861,19 @@ class IngresoVehicularViewModel(
 
     fun guardarPlacaYSolicitarAutorizacion(placa: String){
         ///La placa es VALIDA? si es formato de placa?
-        val placaSanitizada=placa.extraerPlaca()
-        if (placaSanitizada == null || placaSanitizada.isEmpty()){
-            _uiState.update { it.copy(
-                subtitulosAsistente = "🤖 La placa '$placa', No es valida! porfavor ingrese su placa en formato correcto.",
-                placaInput = ""
-            ) }
-            evaluaDatosMaquinaDeEstados()
-            return
+        var placaSanitizada=placa.extraerPlaca()
+        if ( placaSanitizada == null || placaSanitizada.isEmpty()){
+            if (!esModoSalida){
+                _uiState.update { it.copy(
+                    subtitulosAsistente = "🤖 La placa '$placa', No es valida! porfavor ingrese su placa en formato correcto.",
+                    placaInput = ""
+                ) }
+                evaluaDatosMaquinaDeEstados()
+                return
+            }
+            else{
+                placaSanitizada=placa
+            }
         }
 
         _uiState.update { it.copy(placaInput = placaSanitizada) }
