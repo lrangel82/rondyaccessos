@@ -1986,8 +1986,8 @@ class DataRawRondin(
             allRows
         }
     }
-    fun getQR(idQR: String): List<Any>{
-        val rows = getQRs()
+    fun getQR(idQR: String, forceLoad: Boolean = false): List<Any>{
+        val rows = getQRs(forceLoad)
         var result = mutableListOf<Any>()
         run loop@{
             rows.forEach { row ->

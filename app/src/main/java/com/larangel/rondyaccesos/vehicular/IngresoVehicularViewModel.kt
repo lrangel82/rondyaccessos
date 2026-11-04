@@ -417,7 +417,10 @@ class IngresoVehicularViewModel(
 
         viewModelScope.launch(Dispatchers.Default) {
             // 3. CONSULTA: Buscar el QR en la capa de persistencia local indexada
-            val registroQrList: List<Any> = dataRaw.getQR(payloadLimpio)
+            var registroQrList: List<Any> = dataRaw.getQR(payloadLimpio)
+            if (registroQrList.isEmpty()) {
+                registroQrList = dataRaw.getQR(payloadLimpio, forceLoad = true)
+            }
 
             // 4. FILTRO: Verificar existencia en base de datos (Requiere mínimo 8 columnas indexadas)
             if (registroQrList.isEmpty() || registroQrList.size < 7) {
@@ -525,7 +528,7 @@ class IngresoVehicularViewModel(
                     tipoInput = if (esCasoTerraza) "Invitado Terraza" else "Invitado QR",
                     qrData = payloadLimpio,
                     descripcionInput = "Acceso validado exitosamente vía Código QR [$calleQr:$numeroQr]",
-                    status = "AUTORIZADO"
+                    status = "AUTORIZADO QR RONDY"
                 )
             }
 
@@ -906,7 +909,8 @@ class IngresoVehicularViewModel(
                     reiniciarAsistenteCompleto()
                 }
             }
-        } else{
+        }
+        else{
             geminiVoiceAssistant.forzarLocucionPorAltavoz("Estamos solicitando Autorizacion al Residente, espere un poco.")
             _uiState.update {
                 it.copy(
@@ -932,7 +936,7 @@ class IngresoVehicularViewModel(
             }
 
             // Si es paquetería y no ha capturado ninguna dirección en la lista, pide la primera
-            !esModoSalida && _uiState.value.motivoInput?.variosDomicilios == true  && estadoActual.direccionesPaqueteria.isEmpty() && estadoActual.calleInput.isEmpty() -> {
+            !esModoSalida && estadoActual.motivoInput?.variosDomicilios == true  && estadoActual.direccionesPaqueteria.isEmpty() && estadoActual.calleInput.isEmpty() -> {
                 geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme la calle del domicilio.")
                 _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_CALLE) }
             }
@@ -943,17 +947,18 @@ class IngresoVehicularViewModel(
             }
 
             // Para cualquier otro motivo que no tenga dirección capturada
-            (esModoSalida || _uiState.value.motivoInput?.variosDomicilios != true) && estadoActual.calleInput.isEmpty() -> {
+            (esModoSalida || estadoActual.motivoInput?.variosDomicilios != true) && estadoActual.calleInput.isEmpty() -> {
                 geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme la calle del domicilio.")
                 _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_CALLE) }
             }
 
-            (esModoSalida || _uiState.value.motivoInput?.variosDomicilios != true) && estadoActual.numeroInput.isEmpty() -> {
+            (esModoSalida || estadoActual.motivoInput?.variosDomicilios != true) && estadoActual.numeroInput.isEmpty() -> {
                 geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme el numero del domicilio.")
                 _uiState.update { it.copy(currentStep = CaptureStep.SELECCION_NUMERO) }
             }
 
-            (!esModoSalida && estadoActual.conductorInput.isEmpty()) || ( esModoSalida && estadoActual.conductorInput == "OTRO") -> {
+            (!esModoSalida && estadoActual.conductorInput.isEmpty()) ||
+                    ( esModoSalida && estadoActual.conductorInput == "OTRO") -> {
                 geminiVoiceAssistant.forzarLocucionPorAltavoz("Indiqueme el nombre del conductor.")
                 _uiState.update { it.copy(currentStep = CaptureStep.CAPTURA_NOMBRE) }
             }
@@ -1269,7 +1274,7 @@ class IngresoVehicularViewModel(
                     urlFoto2 = url2
 
                     // Feature 5: Update previous open records lacking 'fechaSalida'
-                    dataRaw.actulizarSalidaAccesos(state.placaInput, timestampCombinado, "salida CORREGIDA POR APP")
+                    dataRaw.actulizarSalidaAccesos(state.placaInput, timestampCombinado, "salida CORREGIDA POR APP RONDY")
 
                     //  Construir la Entidad Estructurada para DataRawRondin (Alineada a las 13 columnas de Sheets)
                     val accesoBitacora = AccesoBitacora(
@@ -1327,7 +1332,8 @@ class IngresoVehicularViewModel(
                         acceso = accesoBitacora,
                         mySettings = mySettings
                     )
-                }else {
+                }
+                else {
                     //######## ES SALIDA ############
                     // Feature 5: Update previous open records lacking 'fechaSalida'
                     //es de varios domicilios?

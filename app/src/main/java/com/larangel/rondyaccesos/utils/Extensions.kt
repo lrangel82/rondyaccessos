@@ -30,7 +30,7 @@ import kotlin.math.sqrt
  * Busca una placa en un texto usando Regex y devuelve el valor o null
  */
 fun String.extraerPlaca(): String? {
-    val plateRegex = Regex("([A-Z]{3}[0-9]{3,4}[A-Z]?|[0-9]{2}[A-Z][0-9]{3}|[0-9]{3}[A-Z]{3}|[A-Z]{2}[0-9]{4,5}[A-Z]?|[A-Z][0-9]{4}|[A-Z][0-9]{2}[A-Z]{2,3}|[A-Z]{3}[0-9][A-Z]|[A-Z]{5}[0-9]{2})")
+    val plateRegex = Regex("([A-Z]{3}[0-9]{3,4}[A-Z]?|[0-9]{2}[A-Z][0-9]{3}|[0-9]{2}[A-Z]{2,3}[0-9]|[0-9]{3}[A-Z]{3}|[0-9]{4}[A-Z]{2}|[A-Z]{2}[0-9]{4,5}[A-Z]?|[A-Z][0-9]{4}|[A-Z][0-9]{2}[A-Z]{2,3}|[A-Z]{3}[0-9][A-Z]|[A-Z]{5}[0-9]{2})")
     return plateRegex.find(this.uppercase())?.value
 }
 

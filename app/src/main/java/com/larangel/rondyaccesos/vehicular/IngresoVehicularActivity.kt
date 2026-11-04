@@ -152,7 +152,7 @@ class IngresoVehicularActivity : AppCompatActivity() {
         configurarListenersDeFalla()
         observarCicloDeVidaDeCamaras()
         // Start the asynchronous snapshot extraction engine loop for local OCR parsing
-        iniciarBucleProcesamientoOcrPlacas()
+        //iniciarBucleProcesamientoOcrPlacas()
 
         //QR
         verificarPermisoDeCamaraAutomatizado()
@@ -511,7 +511,8 @@ class IngresoVehicularActivity : AppCompatActivity() {
                 if (state.tipoInput.isNotEmpty()) datosAcumulados.append(" ${state.tipoInput} | ")
                 if (state.calleInput.isNotEmpty()) datosAcumulados.append("Calle: ${state.calleInput} | ")
                 if (state.numeroInput.isNotEmpty()) datosAcumulados.append("#: ${state.numeroInput} | ")
-                if (state.conductorInput.isNotEmpty()) datosAcumulados.append("N: ${state.conductorInput}")
+                if (state.conductorInput.isNotEmpty()) datosAcumulados.append("N: ${state.conductorInput} | ")
+                if (state.placaInput.isNotEmpty()) datosAcumulados.append("P: ${state.placaInput}")
 
                 // Componentes volátiles que sí pueden refrescarse constantemente sin romper botones
                 binding.lblTopMensaje.text = state.lblTopMensaje
@@ -615,7 +616,8 @@ class IngresoVehicularActivity : AppCompatActivity() {
                                         && it[11].toString().isEmpty()
                             }
                             visitasDomicilio.forEach {
-                                inyectarBotonEnMalla(it[6].toString()) {
+                                val textoChip = if (it[6].toString().isEmpty()) "${it[5]}-[${it[2]}]" else it[6].toString()
+                                inyectarBotonEnMalla(textoChip) {
                                     controlarEstadoMicrofono(habilitar = false)
                                     viewModel.registrarPlaca(it[2].toString())
                                     viewModel.guardarNombreYPasarAPlacas(it[6].toString())
