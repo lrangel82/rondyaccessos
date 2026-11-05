@@ -196,14 +196,17 @@ class IngresoPeatonalViewModel(
         if (_uiState.value.mostrarSplash) {
             _uiState.update { it.copy(mostrarSplash = false) }
 
-            // Al despertar por toque o voz "Hola", sí damos la bienvenida
-            if (esModoSalida)
-                geminiVoiceAssistant.forzarLocucionPorAltavoz("Muestreme el QR o vea hacia la camara para registrar su salida.")
-            else
-                geminiVoiceAssistant.forzarLocucionPorAltavoz("Bienvenido al condominio. Cual es el motivo de su ingreso?.")
+            viewModelScope.launch {
+                delay(50)
+                // Al despertar por toque o voz "Hola", sí damos la bienvenida
+                if (esModoSalida)
+                    geminiVoiceAssistant.forzarLocucionPorAltavoz("Muestreme el QR o vea hacia la camara para registrar su salida.")
+                else
+                    geminiVoiceAssistant.forzarLocucionPorAltavoz("Bienvenido al condominio. Cual es el motivo de su ingreso?.")
 
-            iniciarTimerInactividad()
-            reiniciarAsistentePeatonal()
+                iniciarTimerInactividad()
+                reiniciarAsistentePeatonal()
+            }
         }
     }
 

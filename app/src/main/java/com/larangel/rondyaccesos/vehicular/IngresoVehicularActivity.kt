@@ -438,11 +438,14 @@ class IngresoVehicularActivity : AppCompatActivity() {
             }
 
             override fun onDone(utteranceId: String?) {
-                // En cuanto el altavoz termine de hablar, volvemos a encender el micrófono automáticamente
+                // En cuanto el altavoz termine de hablar, volvemos a encender el micrófono automáticamente si no estamos procesando ni mostrando resultado
                 lifecycleScope.launch(Dispatchers.Main) {
-                    delay(500) // Pausa de alivio acústico
-                    actualizarIndicadorVisualVoz("REINICIANDO MICRO...", "#FFEB3B")
-                    encenderMicrofonoAsistente()
+                    val currentState = viewModel.uiState.value
+                    if (!currentState.mostrarPanelResultadoDerecho && currentState.currentStep != CaptureStep.PROCESANDO_AUTORIZACION) {
+                        delay(500) // Pausa de alivio acústico
+                        actualizarIndicadorVisualVoz("REINICIANDO MICRO...", "#FFEB3B")
+                        encenderMicrofonoAsistente()
+                    }
                 }
             }
 
@@ -706,6 +709,8 @@ class IngresoVehicularActivity : AppCompatActivity() {
 
                 //PANEL MESAJE ACCESO Authorizado/Denegado
                 if (state.mostrarPanelResultadoDerecho) {
+                    controlarEstadoMicrofono(habilitar = false)
+                    speechRecognizer?.stopListening()
                     binding.layoutVisualEstatusDerecho.visibility = View.VISIBLE
                     if (state.resultadoEsAutorizado) {
                         // High-contrast: Green Background with Black Text

@@ -234,6 +234,7 @@ class IngresoVehicularViewModel(
     }
 
     fun reiniciarAsistenteCompleto(porRegistroExitoso: Boolean = false) {
+        Log.w("Vehicular", ">>>>> Reiniciar Asistente Completo ")
         timerJob?.cancel()
         whatsappPollingJob?.cancel()
 
@@ -288,11 +289,13 @@ class IngresoVehicularViewModel(
 
         //Recargar los accesos de hoy
         registroVehicularlLast7Days = dataRaw.getRegistroVehicularlLast7Days()
+        Log.w("Vehicular", ">>>>> FINALIZADO Reiniciar Asistente Completo ")
 
         iniciarTimerInactividad()
     }
 
     fun iniciarTimerInactividad() {
+        Log.w("Vehicular", " iniciarTimerInactividad ")
         timerJob?.cancel()
         _uiState.update { it.copy(segundosRestantes = TIMEOUT_INACTIVIDAD_TOTAL) }
         timerJob = viewModelScope.launch(Dispatchers.Default) {
@@ -323,11 +326,12 @@ class IngresoVehicularViewModel(
         }
     }
     fun despertarAsistente(esPorVoz: Boolean = false) {
+        Log.w("Vehicular", " despertarAsistente HOLA ")
         if (_uiState.value.mostrarSplash) {
             _uiState.update { it.copy(mostrarSplash = false) }
 
             if (esModoSalida)
-                geminiVoiceAssistant.forzarLocucionPorAltavoz("Muestreme el QR o indiqueme el domicilio al que ingreso.")
+                geminiVoiceAssistant.forzarLocucionPorAltavoz("HOLA!, Muestreme el QR o indiqueme el domicilio al que ingreso.")
             else
                 // Al despertar por toque o voz "Hola", sí damos la bienvenida
                 geminiVoiceAssistant.forzarLocucionPorAltavoz("Bienvenido al condominio. Indique el motivo de su visita.")
@@ -916,12 +920,16 @@ class IngresoVehicularViewModel(
             }
         }
         else{
-            geminiVoiceAssistant.forzarLocucionPorAltavoz("Estamos solicitando Autorizacion al Residente, espere un poco.")
+            //####### SALIDA ########
+            Log.w("Vehicular", "GuardarPlacasySolicitarAutorizacion SALIDA currentSteap: CaptureStep.PROCESANDO_AUTORIZACION.")
             _uiState.update {
                 it.copy(
                     lblTopMensaje = "SOLICITANDO AUTORIZACION... espere un poco",
                     currentStep = CaptureStep.PROCESANDO_AUTORIZACION
                 )
+            }
+            viewModelScope.launch {
+                geminiVoiceAssistant.forzarLocucionPorAltavoz("Estamos solicitando Autorizacion al Residente, espere un poco.")
             }
             controlarCicloDeVidaDeStreaming()
             ejecutarFiltrosDeSeguridadCompleto()
@@ -1047,8 +1055,10 @@ class IngresoVehicularViewModel(
             val currentState = _uiState.value
 
             // 1. Core Check: Delinquent Address Evaluation (Domicilios Morosos)
+            Log.w("Vehicular", "ejecutarFiltrosDeSeguridadCompleto .... validar Moroso ${calle}:${numero}")
             val esMoroso = dataRaw.esDomicilioMoroso(calle, numero)
             if (esMoroso) {
+                Log.w("Vehicular", "ejecutarFiltrosDeSeguridadCompleto .... ES MOROSO")
                 val motivoDenegacion = "RESTRICCION POR MOROSIDAD DEL DOMICILIO $calle $numero"
                 _uiState.update {
                     it.copy(
@@ -1074,9 +1084,10 @@ class IngresoVehicularViewModel(
             }
 
             // 2. Matrix Validation: Dynamic Exception Check Engine
+            Log.w("Vehicular", "ejecutarFiltrosDeSeguridadCompleto .... buscar excepciones")
             val excepcionActiva = buscarExcepcionParaDomicilio(calle, numero, currentState.conductorInput, currentState.placaInput)
             if (!esModoSalida && excepcionActiva != null) {
-
+                Log.w("Vehicular", "ejecutarFiltrosDeSeguridadCompleto .... EXCEPCION ACTIVA")
                 // Hay excepcion de un solo USO y es del mismo tipo el ingreso
                 val matchTipo = listadoMotivosPredefinidos.find { it.name.uppercase().contains(excepcionActiva.conductor.uppercase())  }
                 if (matchTipo!=null && matchTipo.excepcionesDinamicas) {
@@ -1115,12 +1126,14 @@ class IngresoVehicularViewModel(
 
             // 3. Permisos
             if(!esModoSalida && _uiState.value.motivoInput?.RequierePermisoAdmon == true){
+                Log.w("Vehicular", "ejecutarFiltrosDeSeguridadCompleto .... buscar permisos validos")
                 val permisosHoy = dataRaw.getPermisosCache_DeHoy()
                 val permisoDom = permisosHoy.find {
                     it[1].toString().equalsIgnoreCase(calle) && it[2].toString().equalsIgnoreCase(numero)
                 }
                 //El permiso esta Denegado o no existe?
                 if (permisoDom == null || "1 Si si X".contains(permisoDom[11].toString(), ignoreCase = true) == false) {
+                    Log.w("Vehicular", "ejecutarFiltrosDeSeguridadCompleto .... no hay PERMISO y es REQUERIDO")
                     val motivoDenegacion = "No hay PERMISO activo para $calle $numero"
                     _uiState.update {
                         it.copy(
@@ -1145,12 +1158,14 @@ class IngresoVehicularViewModel(
                 }
             }
 
-
             // 4. Fallback: Base authorization flow sequence if no flags are triggered
-            if (!esModoSalida && conAutorizacion)
+            if (!esModoSalida && conAutorizacion) {
+                Log.w("Vehicular", "ejecutarFiltrosDeSeguridadCompleto .... Solicitar Autorizacion por IVR y Whatsapp")
                 iniciarFlujoAutorizacionWhatsapp()
-            else
+            }
+            else {
                 ejecutarGuardadoTransaccionalFinal(_uiState.value)
+            }
 
         }
     }
@@ -1237,6 +1252,7 @@ class IngresoVehicularViewModel(
             // Validación de reentrada atómica para evitar duplicados por dobles clics táctiles
             if (guardarMutex.isLocked) return@launch
 
+            Log.w("Vehicular", "ejecutarGuardadoTransaccionalFinal .... INICIAR GUARDADO")
             guardarMutex.withLock {
                 _uiState.update { it.copy(lblTopMensaje = "Procesando registro...") }
 
@@ -1254,6 +1270,7 @@ class IngresoVehicularViewModel(
                     val bitmapRostroLive: Bitmap? = app.imagenesCallBackActivo?.invoke("ROSTRO")
                     _uiState.update { it.copy(lblTopMensaje = "Almacenando evidencias...") }
 
+                    Log.w("Vehicular", "ejecutarGuardadoTransaccionalFinal .... guardar imagenes en la nube")
                     val uploadAndCloseJob = async(context = Dispatchers.IO) {
                         // Feature 4: Temporal 30-day Image Ephemeral Upload Module
                         val urlPlaca = CloudStorageManager.subirImagenTemporal(
@@ -1279,6 +1296,7 @@ class IngresoVehicularViewModel(
                     urlFoto2 = url2
 
                     // Feature 5: Update previous open records lacking 'fechaSalida'
+                    Log.w("Vehicular", "ejecutarGuardadoTransaccionalFinal .... cerrar cualquier SALIDA pendiente de ${state.placaInput}")
                     dataRaw.actulizarSalidaAccesos(state.placaInput, timestampCombinado, "salida CORREGIDA POR APP RONDY")
 
                     //  Construir la Entidad Estructurada para DataRawRondin (Alineada a las 13 columnas de Sheets)
@@ -1320,14 +1338,16 @@ class IngresoVehicularViewModel(
                     // 5. Persistir de forma inmediata en la capa de datos unificada de la app (RAM + MySettings + Queue)
                     _uiState.update { it.copy(lblTopMensaje = "Guardando en bitácora local...") }
                     val guardadoLocalExitoso = withContext(Dispatchers.IO) {
+                        Log.w("Vehicular", "ejecutarGuardadoTransaccionalFinal .... salvando bitacora ${accesoBitacora}")
                         dataRaw.addBitacoraAccesos(accesoBitacora)
                     }
 
                     if (!guardadoLocalExitoso) {
-                        Log.e("IngresoVehicularVM", "Error crítico al intentar indexar el acceso en las estructuras de DataRawRondin.")
+                        Log.e("Vehicular", "Error crítico al intentar indexar el acceso en las estructuras de DataRawRondin.")
                     }
 
                     // Feature 6: WhatsApp Async Double Notification Pipeline (Template + Images)
+                    Log.w("Vehicular", "ejecutarGuardadoTransaccionalFinal .... enviando notificacion Whatsapp")
                     val telefonosDomicilio = dataRaw.getWhatsappTelefonosDomicilio(state.calleInput, state.numeroInput)
                     val telefonosFiltrados: List<String> = telefonosDomicilio.map { fila ->
                         fila[2].toString()
@@ -1341,20 +1361,18 @@ class IngresoVehicularViewModel(
                 else {
                     //######## ES SALIDA ############
                     // Feature 5: Update previous open records lacking 'fechaSalida'
-                    //es de varios domicilios?
-                    //if(state.motivoInput!!.variosDomicilios){
-                        var regEntrada = dataRaw.getBitacoraUltimoAcceso(state.placaInput, descartarSalidas = true)
-                        while (!regEntrada.isEmpty()) {
-                            dataRaw.actulizarSalidaAccesos(
-                                state.placaInput,
-                                timestampCombinado,
-                                "SALIDA REGISTRADA RONDY",
-                                fecha_creado = regEntrada[1].toString())
-                            regEntrada = dataRaw.getBitacoraUltimoAcceso(state.placaInput, descartarSalidas = true)
-                        }
-                    //}
+                    Log.w("Vehicular", "ejecutarGuardadoTransaccionalFinal SALIDA.... updateBitacora Salidas pendientes placa: ${state.placaInput}")
+                    var regEntrada = dataRaw.getBitacoraUltimoAcceso(state.placaInput, descartarSalidas = true)
+                    while (!regEntrada.isEmpty()) {
+                        dataRaw.actulizarSalidaAccesos(
+                            state.placaInput,
+                            timestampCombinado,
+                            "SALIDA REGISTRADA RONDY",
+                            fecha_creado = regEntrada[1].toString())
+                        regEntrada = dataRaw.getBitacoraUltimoAcceso(state.placaInput, descartarSalidas = true)
+                    }
 
-                    //dataRaw.actulizarSalidaAccesos(state.placaInput, timestampCombinado, "SALIDA REGISTRADA")
+                    Log.w("Vehicular", "ejecutarGuardadoTransaccionalFinal SALIDA.... Mostrar panel de autorizacion")
                     _uiState.update { it.copy(
                         lblTopMensaje = if (esAutorizado) "HASTA LUEGO" else "ACCESO DENEGADO",
                         mostrarPanelResultadoDerecho = true,
@@ -1366,38 +1384,34 @@ class IngresoVehicularViewModel(
 
                 //####### ABRIR PLUMA ####
                 if (esAutorizado) {
-                    doorController.abrirPuertaConfigurada()
-                    if (!esModoSalida)
-                        geminiVoiceAssistant.forzarLocucionPorAltavoz("Bienvenido pase ${state.conductorInput}.")
-                    else
-                        geminiVoiceAssistant.forzarLocucionPorAltavoz("Hasta luego ${state.conductorInput}.")
+                    Log.w("Vehicular", "ejecutarGuardadoTransaccionalFinal SALIDA.... Abrir PLUMA")
+                    viewModelScope.launch {
+                        doorController.abrirPuertaConfigurada()
+                        if (!esModoSalida)
+                            geminiVoiceAssistant.forzarLocucionPorAltavoz("Bienvenido pase ${state.conductorInput}.")
+                        else
+                            geminiVoiceAssistant.forzarLocucionPorAltavoz("Hasta luego ${state.conductorInput}.")
+                    }
                 }
-
-
-                // Speech notification deployment
-//                if (esAutorizado) {
-//                    geminiVoiceAssistant.forzarLocucionPorAltavoz("Acceso autorizado, la barrera se está abriendo.")
-//                } else {
-//                    geminiVoiceAssistant.forzarLocucionPorAltavoz("Acceso denegado. Motivo: ${state.descripcionInput}")
-//                }
-
-                // Sincronización diferida nativa de Android al recuperar enlace de datos
-               //SyncManager.programarSincronizacionAlRecuperarInternet(getApplication())
 
 
                 // Retraso controlado para permitir que el operario visualice el estatus en la pantalla antes del reset
-                delay(4000)
+                viewModelScope.launch {
+                    Log.w("Vehicular", "ejecutarGuardadoTransaccionalFinal SALIDA.... Delay de 4 segundos")
+                    delay(4000)
 
-                // Complete Reset & wipe visual panels
-                _uiState.update {
-                    it.copy(
-                        mostrarPanelResultadoDerecho = false,
-                        lblTopMensaje = ""
-                    )
+                    // Complete Reset & wipe visual panels
+                    Log.w("Vehicular", "ejecutarGuardadoTransaccionalFinal SALIDA.... Ocultar panel autorizacion")
+                    _uiState.update {
+                        it.copy(
+                            mostrarPanelResultadoDerecho = false,
+                            lblTopMensaje = ""
+                        )
+                    }
+                    // Retorna el flujo guiado al paso 1, apaga el Timer de Inactividad y reestablece parámetros de IA
+                    reiniciarAsistenteCompleto()
                 }
 
-                // Retorna el flujo guiado al paso 1, apaga el Timer de Inactividad y reestablece parámetros de IA
-                reiniciarAsistenteCompleto()
             }
         }
     }
